@@ -4,11 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport"
             content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <link rel="icon" href="https://qishaoxuan.github.io/css_tricks/images/favicon.png">
+    <link rel="icon"
+            href="https://qishaoxuan.github.io/css_tricks/images/favicon.png">
     <title>Qi</title>
-    <script data-ad-client="ca-pub-3591151685475548" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+    <script data-ad-client="ca-pub-3591151685475548" async
+            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
 </head>
 <body>
+<p>语言和框架只是实现目标的一个工具和手段。</p>
+<p>君子役物，小人役于物。</p>
+<p>这里用来记录写过的小玩意儿，以防自己都忘记。</p>
 
+<ol></ol>
 </body>
+<script>
+  const data = {
+    "css_tricks": "https://github.com/QiShaoXuan/css_tricks",
+    "js_tricks": "https://github.com/QiShaoXuan/js_tricks",
+    "blog": "https://github.com/QiShaoXuan/blog",
+    "animate_resume_ts": "https://github.com/QiShaoXuan/animate_resume_ts",
+    "wavejs": "https://github.com/QiShaoXuan/wavejs",
+    "rhythm-ripple": "https://github.com/QiShaoXuan/rhythm-ripple",
+    "dont-touch-white": "https://github.com/QiShaoXuan/dont-touch-white",
+    "log-tree": "https://github.com/QiShaoXuan/log-tree",
+    "log-dir-tree": "https://github.com/QiShaoXuan/log-dir-tree",
+    "PAnimate": "https://github.com/QiShaoXuan/PAnimate",
+    "bundle_email_template": "https://github.com/QiShaoXuan/bundle_email_template",
+    "pazzle": "https://github.com/QiShaoXuan/pazzle",
+    "particleText": "https://github.com/QiShaoXuan/particleText",
+    "vue_tetris": "https://github.com/QiShaoXuan/vue_tetris",
+    "messyBalls": "https://qishaoxuan.github.io/messyBalls/",
+  }
+  const ol = document.querySelector('ol')
+  let lis = ''
+  for (let name in data) {
+    lis += `<li><a href="${data[name]}">${name}</a></li>`
+  }
+  ol.innerHTML = lis
+</script>
 </html>
