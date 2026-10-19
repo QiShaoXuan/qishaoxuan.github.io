@@ -2,3 +2,20 @@
 /build
 .idea
 .vscode
+
+# Resume development and local secrets
+.DS_Store
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.*
+!.env.example
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Raw chat style analysis and personal job-search notes stay local.
+/private/

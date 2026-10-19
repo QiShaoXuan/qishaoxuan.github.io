@@ -1,0 +1,60 @@
+log_format resume_minimal '$time_iso8601 $request_method $uri $status $body_bytes_sent $request_time';
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name 101.201.78.159;
+    server_tokens off;
+    access_log /var/log/nginx/resume.access.log resume_minimal;
+    error_log /var/log/nginx/resume.error.log warn;
+
+    # Keep HTTP-01 validation reachable for every automatic renewal.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 308 https://101.201.78.159$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name 101.201.78.159;
+    server_tokens off;
+    client_max_body_size 1m;
+
+    ssl_certificate /etc/letsencrypt/live/resume-ip/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/resume-ip/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:resumeSSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    access_log /var/log/nginx/resume.access.log resume_minimal;
+    error_log /var/log/nginx/resume.error.log warn;
+
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 60s;
+
+    location = /api/chat {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_buffering off;
+        proxy_cache off;
+        gzip off;
+        proxy_read_timeout 300s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+    }
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Renew the resume IP HTTPS certificate
+Wants=network-online.target
+After=network-online.target nginx.service
+ConditionPathExists=/etc/letsencrypt/renewal/resume-ip.conf
+
+[Service]
+Type=oneshot
+ExecStart=/opt/certbot/bin/certbot renew --cert-name resume-ip --quiet
+TimeoutStartSec=600
+UMask=0077
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true
