@@ -11,7 +11,7 @@ import { safeDiagnostic } from './diagnostics.js';
 import { deepseekProvider } from './deepseek.js';
 import { createGithubLoader } from './github.js';
 import { ChatError, writeSse } from './sse.js';
-import { PROMPT_VERSION, KNOWLEDGE_VERSION, KNOWLEDGE_SOURCES } from './prompts.js';
+import { PROMPT_VERSION, KNOWLEDGE_VERSION, KNOWLEDGE_SOURCES, getKnowledgeSources } from './prompts.js';
 
 const chatBodySchema = {
   type: 'object',
@@ -124,7 +124,7 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
         if (streaming) await writeSse(reply.raw, controller.signal, 'delta', { content: result.value });
       }
       if (!completion || !['stop', 'length'].includes(completion.finishReason)) throw new ChatError('UPSTREAM_FINISH_ERROR');
-      const sources = config.chat.mode === 'mock' ? [] : [...KNOWLEDGE_SOURCES, ...(completion.sources ?? [])];
+      const sources = config.chat.mode === 'mock' ? [] : [...getKnowledgeSources(config.release?.commit), ...(completion.sources ?? [])];
       if (streaming) {
         await writeSse(reply.raw, controller.signal, 'done', { finishReason: completion.finishReason, sources });
         reply.raw.end();
@@ -145,7 +145,7 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
       // A provider may be blocked inside next(); cancellation is signaled, never awaited indefinitely.
       void iterator?.return({ finishReason: 'stop' }).catch(() => {});
       reply.raw.off('close', abort); active.delete(controller); concurrent--;
-      app.log.info({ route: '/api/chat', method: 'POST', id: request.id, env: config.release?.environment ?? 'local', commit: config.release?.commit, timing: performance.now() - started, firstToken, status: reply.statusCode, model: config.chat.mode === 'deepseek' ? config.chat.model : 'mock', outcome, errorCode, finish: outcome === 'success' ? completion?.finishReason : 'error', upstreamId: completion?.upstreamId, promptTokens: completion?.promptTokens, completionTokens: completion?.completionTokens, promptVersion: PROMPT_VERSION, knowledgeVersion: KNOWLEDGE_VERSION, repositoryRefs: completion?.sources?.map((source) => source.id) }, 'chat');
+      app.log.info({ route: '/api/chat', method: 'POST', id: request.id, env: config.release?.environment ?? 'local', commit: config.release?.commit, timing: performance.now() - started, firstToken, status: reply.statusCode, model: config.chat.mode === 'deepseek' ? config.chat.model : 'mock', outcome, errorCode, finish: outcome === 'success' ? completion?.finishReason : 'error', upstreamId: completion?.upstreamId, promptTokens: completion?.promptTokens, completionTokens: completion?.completionTokens, promptVersion: PROMPT_VERSION, knowledgeVersion: KNOWLEDGE_VERSION, knowledgeRefs: config.chat.mode === 'deepseek' ? KNOWLEDGE_SOURCES.map((source) => source.id) : [], repositoryRefs: completion?.sources?.map((source) => source.id) ?? [] }, 'chat');
     }
   });
   return app;

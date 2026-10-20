@@ -85,8 +85,10 @@ test('only successfully fetched repos supplement system facts and completion/API
   }); t.after(() => app.close());
   const result = await app.inject({ method: 'POST', url: '/api/chat', payload: { messages: question() } });
   assert.equal(result.statusCode, 200); assert.equal(githubCalls, 2);
-  assert.equal(result.json().sources.length, 2); assert.equal(result.json().sources[1].url, `https://github.com/toeverything/AFFiNE/blob/${sha}/README.md`);
-  assert.ok(result.json().sources[1].id.length <= 100); assert.ok(result.json().sources[1].title.length <= 200); assert.ok(result.json().sources[1].url.length <= 2048);
+  assert.equal(result.json().sources.length, 3); assert.equal(result.json().sources[2].url, `https://github.com/toeverything/AFFiNE/blob/${sha}/README.md`);
+  for (const source of result.json().sources) {
+    assert.ok(source.id.length <= 100); assert.ok(source.title.length <= 200); assert.ok(source.url === undefined || source.url.length <= 2048);
+  }
   for (const expected of ['NEW_FEATURE', '不可信引用数据', '不等于齐少轩历史个人贡献', '未读取源码就不能声称具体实现已经核验', sha]) assert.ok(prompt.includes(expected), expected);
   const sse = await app.inject({ method: 'POST', url: '/api/chat', headers: { accept: 'text/event-stream' }, payload: { messages: question() } });
   assert.match(sse.body, /event: done/); assert.ok(sse.body.includes(`https://github.com/toeverything/AFFiNE/blob/${sha}/README.md`));

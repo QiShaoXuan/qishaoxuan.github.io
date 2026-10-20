@@ -90,9 +90,11 @@ GitHub Environments 已各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN
 
 聊天请求只接收 `messages`：1–20 条 `user` / `assistant` 消息，每条 1–4000 字符且不可全为空白；拒绝 `system`、自选模型与额外字段。请求体上限 100 KiB。部署探针仅发送 `{"messages":[]}` 验证路由与校验，不提交有效聊天、不调用模型；健康和 CORS 预检也不调用模型。
 
-根目录 [readme.md](readme.md) 是唯一简历事实来源，构建时生成 API 可读取的公开知识模块；API 发布包仍使用顶层 JS 文件，不上传根 Markdown 或 `private/`。原始私密聊天风格资料仅留本机；只将经提炼的公开表达风格作为服务端规则，与公开简历知识分开维护。公开规则不能把未证实经历扩写为事实。
+根目录 [readme.md](readme.md) 是唯一简历事实来源。[AFFiNE / BlockSuite 项目资料](docs/knowledge/affine.md) 第 1–6 节补充经本人确认的历史实现、三组选型理由和剪贴板复杂案例；任职时间与职责仍以简历为准。构建脚本只读取这两份白名单输入，每份上限 64 KiB，生成独立内容版本与聚合知识版本；文档头部、第 7–8 节维护说明、证据索引和提交 TSV 不进入模型。首期每次 DeepSeek 请求提供两份正文，避免追问时丢失项目背景；没有向量数据库或额外检索服务。API 发布包仍使用顶层生成 JS 文件，不上传 Markdown 或 `private/`。原始私密聊天风格资料仅留本机；只将经提炼的公开表达风格作为服务端规则，与项目事实分开维护。
 
-DeepSeek 模式会按当前问题及有限的用户追问历史，匹配 AFFiNE、BlockSuite、CSS Tricks、JS Tricks、Blog、wavejs 六个固定公开仓库，每次最多两个。服务端读取 GitHub README 作为项目功能与技术背景，回答下方展示实际读取成功、绑定提交的来源链接；README 不代表完整源码分析，仓库整体功能不自动归为个人贡献。先读取仓库 HEAD 的 README，成功缓存一小时；匿名 API 限流或失败时，回退至已核实提交和准确路径的官方原始文件，提示词明确这是固定快照、可能不是最新版本。每仓总限时 6 秒，失败缓存一分钟，全部失败则只依据简历回答并说明无法核对仓库。无需 GitHub 密钥，DeepSeek 密钥不会发送给 GitHub；Mock 模式不读取仓库。
+JSON 与 SSE 完成事件返回同一组参考来源：公开简历、AFFiNE 项目资料，以及当次读取成功的 GitHub README。两个本地来源的 ID 含内容版本；部署后链接绑定 `RELEASE_COMMIT` 下的原文件，未提交的本地资料不伪造公开 URL。参考列表表示提供给模型的资料，不是逐句归因。结构化日志的 `knowledgeVersion` 覆盖简历与项目正文，`knowledgeRefs` 记录两份本地来源标识，`repositoryRefs` 只记录成功读取的 README。
+
+DeepSeek 模式会按当前问题及有限的用户追问历史，匹配 AFFiNE、BlockSuite、CSS Tricks、JS Tricks、Blog、wavejs 六个固定公开仓库，每次最多两个。服务端读取 GitHub README 作为项目功能与技术背景，回答下方展示实际读取成功、绑定提交的来源链接；README 不代表完整源码分析，仓库整体功能不自动归为个人贡献。先读取仓库 HEAD 的 README，成功缓存一小时；匿名 API 限流或失败时，回退至已核实提交和准确路径的官方原始文件，提示词明确这是固定快照、可能不是最新版本。每仓总限时 6 秒，失败缓存一分钟；全部失败仍可依据已加载的简历与 AFFiNE 项目资料回答，仅在需要核对当前仓库时说明无法读取。无需 GitHub 密钥，DeepSeek 密钥不会发送给 GitHub；Mock 模式不读取仓库。
 
 服务端输出结构化运行日志，systemd 收集到 journal，记录请求状态、耗时、prompt / knowledge 版本等排查信息；不记录聊天正文、完整 prompt、上游响应正文或密钥。日志用于本地定位，未接入外部日志平台。进程内限流、并发和每日计数不能替代持久化账单预算。
 

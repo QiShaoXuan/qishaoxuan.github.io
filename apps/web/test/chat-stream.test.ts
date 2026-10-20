@@ -30,12 +30,12 @@ test('累计回复有界；错误事件可识别，不能被当作完整回复',
 });
 
 test('来源允许公开GitHub仓库HTTPS链接，拒绝外站/凭证/脚本和多余字段', () => {
-  const url = 'https://github.com/QiShaoXuan/flux-dev-suite/blob/abc123/README.md';
+  const url = `https://github.com/QiShaoXuan/qishaoxuan.github.io/blob/${'a'.repeat(40)}/docs/knowledge/affine.md`;
   const events: ChatEvent[] = [];
   const parser = createChatParser((event) => events.push(event));
-  parser.push(`${meta}${frame('done', { finishReason: 'stop', sources: [{ id: 'repo', title: '项目 README', url }] })}`);
+  parser.push(`${meta}${frame('done', { finishReason: 'stop', sources: [{ id: 'affine:0123456789abcdef', title: 'AFFiNE / BlockSuite 项目资料', url }] })}`);
   parser.finish();
-  assert.deepEqual(events.at(-1), { type: 'done', finishReason: 'stop', sources: [{ id: 'repo', title: '项目 README', url }] });
+  assert.deepEqual(events.at(-1), { type: 'done', finishReason: 'stop', sources: [{ id: 'affine:0123456789abcdef', title: 'AFFiNE / BlockSuite 项目资料', url }] });
   for (const source of [
     { id: 'repo', title: 'x', url: 'javascript:alert(1)' },
     { id: 'repo', title: 'x', url: 'https://github.com.evil.test/a/b' },

@@ -237,7 +237,7 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
           else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         }} className="chat-panel" data-mode={mode} data-dragging={dragging || undefined} style={mode === 'floating' && !mobile ? { left: position.x, top: position.y } : undefined}>
           <header className="chat-header" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={(event) => endDrag(event)} onPointerCancel={(event) => endDrag(event, true)} onLostPointerCapture={(event) => endDrag(event, true)}>
-            <div className="chat-heading"><SparklesIcon aria-hidden="true" /><div><h2 id="chat-title">AI 简历助手</h2><span>基于公开简历回答</span></div></div>
+            <div className="chat-heading"><SparklesIcon aria-hidden="true" /><div><h2 id="chat-title">AI 简历助手</h2><span>基于公开简历与项目资料回答</span></div></div>
             <div className="chat-actions">
               {!mobile && <>
                 <button type="button" onClick={() => changeMode('left')} title="停靠左侧" aria-label="停靠左侧" aria-pressed={mode === 'left'}><ArrowLeftStartOnRectangleIcon aria-hidden="true" /></button>

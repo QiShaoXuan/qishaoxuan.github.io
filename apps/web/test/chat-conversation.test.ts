@@ -156,7 +156,7 @@ test('已超容量的非法旧数据同样保留原值，直到确认清理', ()
   assert.equal(raw, null);
 });
 test('来源链接存储校验与SSE保持同一HTTPS GitHub边界', () => {
-  const source = { id: 'repo', title: 'README', url: 'https://github.com/QiShaoXuan/resume/blob/abc123/README.md' };
+  const source = { id: 'affine:0123456789abcdef', title: 'AFFiNE / BlockSuite 项目资料', url: `https://github.com/QiShaoXuan/qishaoxuan.github.io/blob/${'a'.repeat(40)}/docs/knowledge/affine.md` };
   assert.deepEqual(decodeConversation(encode([{ ...complete(1), sources: [source] }]))[0]?.sources, [source]);
   assert.throws(() => decodeConversation(encode([{ ...complete(1), sources: [{ ...source, url: 'javascript:alert(1)' }] }])));
   assert.throws(() => decodeConversation(encode([{ ...complete(1), sources: [{ ...source, unexpected: true }] }])));

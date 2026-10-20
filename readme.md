@@ -43,7 +43,7 @@ https://github.com/toeverything/AFFiNE
 - 参与将早期项目调整为 pnpm monorepo，拆分 `frontend / common / backend` 以及 UI、i18n、编辑器等公共包，供 Web 和 Electron 共用。
 - 重构 Provider 与 AppState，完成 workspace change、theme change、`MessageCenterHandler` 等跨模块事件处理，梳理 workspace 切换和应用初始化逻辑。
 - 负责 Workspace 管理、子页面、Pinboard、收藏、回收站、快捷搜索、主题、账号及成员邀请等功能，并重构设置中心。
-- 参与 `@toeverything/components` 组件替换和维护，将拖拽库从 `react-dnd` 替换为 `dnd-kit`，并将 E2E 测试从 Electron 调整为 Puppeteer 方案。
+- 参与 `@toeverything/components` 组件替换和维护，将拖拽库从 `react-dnd` 替换为 `dnd-kit`。
 - 参与底层块级编辑器 [BlockSuite](https://github.com/toeverything/blocksuite) 开发：
   - 重构 clipboard，整理 `block2html`、`html2block` 和 `ClipboardUtils`，修复多块复制、特殊字符、粘贴多余内容等问题。
   - 从零实现 Bookmark Block，包括链接识别、卡片加载与渲染、白板模式下的插入和拖拽，以及 undo/redo 处理和测试。
