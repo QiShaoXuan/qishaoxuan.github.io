@@ -238,3 +238,37 @@ test('CLI local failure codes and numeric exit codes survive submission sanitiza
     assert.equal(attempts, 1);
   }
 });
+
+test('both API operations explicitly pass CLI global region as well as API RegionId', async () => {
+  const calls = [];
+  await runCommand(target, 'echo ready', 0, { ...options, cli: async (args) => {
+    calls.push(args);
+    return args[1] === 'RunCommand' ? { InvokeId: 't-test123' } : invocation();
+  } });
+  assert.equal(calls.length, 2);
+  for (const args of calls) {
+    assert.equal(args[args.indexOf('--region') + 1], 'cn-beijing');
+    assert.equal(args[args.indexOf('--RegionId') + 1], 'cn-beijing');
+  }
+});
+test('official CLI local parser/profile errors from stderr or stdout map to fixed safe diagnostics', async () => {
+  for (const [raw, expected] of [
+    ["ERROR: region can't be empty\n\nConfiguration failed, use `aliyun configure` to configure it\n", 'CLI_REGION_REQUIRED'],
+    ["ERROR: profile SECRET is not configure yet\nConfiguration failed, use `aliyun configure` to configure it.\n", 'CLI_CREDENTIALS_REQUIRED'],
+    ["ERROR: invalid flag --SECRET_COMMAND_CONTENT\n", 'CLI_ARGUMENT_ERROR'],
+  ]) {
+    for (const stream of ['stdout', 'stderr']) {
+      let count = 0;
+      await assert.rejects(runCommand(target, 'SECRET_SCRIPT', 0, { ...options, cli: async (args) => {
+        count++;
+        return aliyunCli(args, { spawnProcess: processStub({ [stream]: raw, exitCode: 3 }) });
+      } }), (error) => {
+        assert.equal(error.safeDiagnostics.LocalCode, expected);
+        assert.equal(error.safeDiagnostics.ExitCode, 3);
+        assert.doesNotMatch(error.message, /SECRET/);
+        return true;
+      });
+      assert.equal(count, 1);
+    }
+  }
+});

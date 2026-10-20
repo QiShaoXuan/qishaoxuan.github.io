@@ -113,7 +113,7 @@ systemctl reload nginx.service
 
 ## 双环境自动部署
 
-双环境自动化代码已实现；外部 IAM/OIDC 授权、GitHub Environments 设置、首次真实发布与公网验证尚待完成。本文此前 2026-10-19 的记录属于原环境准备阶段，不代表新流程已运行成功。
+双环境自动化代码及外部 IAM/OIDC、GitHub Environments、服务器初始化已完成配置。首次正式发布在通过校验后，云助手调用失败，尚在修复；正式与开发首次发布及公网验证仍待完成。本文此前 2026-10-19 的记录属于原环境准备阶段，不代表新流程已发布成功。
 
 | 项目 | 正式环境 | 开发环境 |
 | --- | --- | --- |
@@ -124,6 +124,20 @@ systemctl reload nginx.service
 | 发布根 / 服务 / 预检端口 | `/srv/resume` / 3000 / 3001 | `/srv/resume-development` / 3100 / 3101 |
 
 两套服务均以普通用户运行、`NODE_ENV=production`，监听 `127.0.0.1`。Nginx 将 `/dev/api/` 去掉 `/dev` 前缀后代理到 3100；正式 API 代理到 3000。浏览器两环境的 Origin 都是 `https://qishaoxuan.github.io`，CORS 不带 `/dev` 路径。公共端口仅需 80/443；服务和预检端口不开放公网。
+
+### 双环境配置记录（2026-10-20）
+
+以下为本轮通过控制台实际完成的配置，时间均为北京时间：
+
+| 配置 | 已完成内容 |
+| --- | --- |
+| 阿里云 OIDC | provider `resume-github-actions`，供 GitHub Actions 换取临时凭证 |
+| 正式角色与策略 | 角色 `resume-github-production`，自定义策略 `resume-github-production-deploy`；仅目标实例 `RunCommand` 且执行用户为 `resume`，以及 `DescribeInvocationResults` 查询 |
+| 开发角色与策略 | 角色 `resume-github-development`，对应开发自定义部署策略；仅目标实例 `RunCommand` 且执行用户为 `resume-dev`，以及 `DescribeInvocationResults` 查询 |
+| GitHub Environments | `production`（ID `24782423084`）仅 `master`；`development`（ID `24782598685`）仅 `develop`。两者均已配置三项部署变量 |
+| 服务器初始化 | 14:06 完成，云助手调用 `t-bj070l0pizz7h8g` 返回退出码 0；备份 `/var/backups/resume-environments/20261020T060624-21853/` |
+
+首次初始化遇到 Nginx 重载后短暂 404，已通过有界健康重试修复（提交 `8920e24`），再执行成功。PR #1 已合入 `master`（`57e65b0`）。首次正式 Actions [运行 39378693783](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39378693783) 通过 validate，release 的云助手 step 0 因 CLI 退出码 3 失败；该运行不构成发布成功证据，正在修复。正式与开发两环境均需等待后续成功运行和公网验证后记录上线结果。
 
 ### 一次性初始化
 

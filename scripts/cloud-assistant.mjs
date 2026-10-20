@@ -41,7 +41,12 @@ export function commandToken(target, step, command) {
 }
 
 const systemCodes = new Set(['ENOENT', 'EACCES', 'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'EAI_AGAIN']);
-const localHints = { INVALID_JSON: 'invalid JSON response', OUTPUT_LIMIT: 'response exceeded output limit' };
+const localHints = {
+  INVALID_JSON: 'invalid JSON response', OUTPUT_LIMIT: 'response exceeded output limit',
+  CLI_REGION_REQUIRED: 'CLI global region is missing; supply --region',
+  CLI_CREDENTIALS_REQUIRED: 'CLI credentials or profile configuration is missing',
+  CLI_ARGUMENT_ERROR: 'CLI rejected command arguments; check the API schema',
+};
 const transientSystemCodes = new Set(['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'EAI_AGAIN']);
 const apiCodeRoots = new Set(['Forbidden', 'InvalidParameter', 'MissingParameter', 'InvalidAccessKeyId', 'SignatureDoesNotMatch',
   'InvalidSecurityToken', 'SecurityTokenExpired', 'InvalidRegionId', 'InvalidInstanceId', 'InvalidAction', 'InvalidVersion',
@@ -51,6 +56,12 @@ const transientApiRoots = new Set(['Throttling', 'ThrottlingException', 'Interna
 // Parse only typed diagnostic fields. Untrusted CLI prose, request URLs, credentials and
 // command contents never become part of an exception or a log line.
 export function cliFailure(stderr = '', { code, status, exitCode, localCode, timedOut = false } = {}) {
+  // Known CLI-local messages are mapped to fixed labels, never copied to diagnostics.
+  if (!localCode) {
+    if (/(?:^|\n)(?:ERROR: )?region can't be empty\s*(?:\n|$)/.test(stderr)) localCode = 'CLI_REGION_REQUIRED';
+    else if (/(?:^|\n)Configuration failed, use `aliyun configure` to configure it\.?\s*(?:\n|$)/.test(stderr)) localCode = 'CLI_CREDENTIALS_REQUIRED';
+    else if (/(?:^|\n)ERROR: (?:invalid flag |unknown flag |not support flag form |too many arguments|missing required parameter)/.test(stderr)) localCode = 'CLI_ARGUMENT_ERROR';
+  }
   let structured;
   try { structured = JSON.parse(stderr); } catch { /* CLI also emits line-based SDK errors. */ }
   const candidate = structured?.Code ?? structured?.ErrorCode ?? stderr.match(/(?:^|\n)\s*(?:ErrorCode|Code):\s*([A-Za-z][A-Za-z0-9.]{0,95})\s*(?:\r?\n|$)/)?.[1];
@@ -98,7 +109,12 @@ export function aliyunCli(args, { spawnProcess = spawn } = {}) {
     child.on('close', (code) => {
       clearTimeout(timer);
       if (excessive) return reject(cliFailure('', { localCode: 'OUTPUT_LIMIT', exitCode: code }));
-      if (timedOut || code !== 0) return reject(cliFailure(stderr, { exitCode: code, timedOut }));
+      if (timedOut || code !== 0) {
+        const stderrFailure = cliFailure(stderr, { exitCode: code, timedOut });
+        const stdoutFailure = cliFailure(output.slice(0, 65536), { exitCode: code, timedOut });
+        const hasDiagnostic = (error) => Object.keys(error.safeDiagnostics).some((key) => key !== 'ExitCode');
+        return reject(hasDiagnostic(stderrFailure) ? stderrFailure : stdoutFailure);
+      }
       try { resolve(JSON.parse(output)); } catch { reject(cliFailure('', { localCode: 'INVALID_JSON', exitCode: code })); }
     });
   });
@@ -116,7 +132,7 @@ export async function runCommand(target, command, step, {
 } = {}) {
   const content = encodeCommand(command);
   const token = commandToken(target, step, command);
-  const args = ['ecs', 'RunCommand', '--RegionId', target.region, '--InstanceId.1', target.instanceId,
+  const args = ['ecs', 'RunCommand', '--region', target.region, '--RegionId', target.region, '--InstanceId.1', target.instanceId,
     '--Type', 'RunShellScript', '--CommandContent', content, '--ContentEncoding', 'Base64',
     '--Username', target.user, '--WorkingDir', target.base, '--Timeout', String(timeout),
     '--RepeatMode', 'Once', '--KeepCommand', 'false', '--EnableParameter', 'false', '--ClientToken', token];
@@ -137,7 +153,7 @@ export async function runCommand(target, command, step, {
   while (now() < deadline) {
     let response;
     try {
-      response = await cli(['ecs', 'DescribeInvocationResults', '--RegionId', target.region,
+      response = await cli(['ecs', 'DescribeInvocationResults', '--region', target.region, '--RegionId', target.region,
         '--InvokeId', invokeId, '--InstanceId', target.instanceId, '--ContentEncoding', 'Base64']);
     } catch (error) {
       const failure = safeCliError(error);

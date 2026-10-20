@@ -43,7 +43,7 @@ npm run dev
 
 ## 双环境自动发布
 
-自动化代码已实现，阿里云 IAM/OIDC 授权、GitHub Environments 配置及首次真实发布尚待完成，当前不能据此认定双环境已上线。
+2026-10-20 本轮已完成阿里云 IAM/OIDC、GitHub Environments 配置，服务器双环境初始化于北京时间 14:06 完成。首次正式 Actions 运行已通过校验，但云助手发布步骤失败，正在修复；正式与开发环境的首次发布及公网验证仍待完成，不能据此认定双环境已上线。
 
 | 分支 | GitHub Environment | 前端路径 | API 前缀 | ECS 用户 / 端口 |
 | --- | --- | --- | --- | --- |
@@ -52,7 +52,7 @@ npm run dev
 
 `.github/workflows/pages.yml` 对两分支 PR 执行 Lint、类型、测试与构建；push 或对应分支手动触发在校验后发布。release 全局串行，先通过 ECS 云助手部署并验证目标 API，再合并当前环境的静态构建与另一环境上次成功产物，统一发布同一个 Pages 站点。
 
-GitHub Environments 各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN_OIDC_PROVIDER_ARN` 三个变量。`production` 仅允许 `master`，`development` 仅允许 `develop`；两个 RAM 角色的 OIDC 信任分别绑定各环境，云助手执行权限分别限制为 `resume` 与 `resume-dev`。使用临时凭证，不保存长期访问密钥。首次服务器初始化由 `root` 通过云助手执行 `deploy/setup-environments.sh`；后续发布不需要 SSH / SCP。
+GitHub Environments 已各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN_OIDC_PROVIDER_ARN` 三个变量。`production` 仅允许 `master`，`development` 仅允许 `develop`；两个 RAM 角色的 OIDC 信任分别绑定各环境，云助手执行权限分别限制为 `resume` 与 `resume-dev`。使用临时凭证，不保存长期访问密钥。服务器已由 `root` 通过云助手执行 `deploy/setup-environments.sh` 完成一次性初始化；后续发布不需要 SSH / SCP。OIDC provider 为 `resume-github-actions`，正式与开发角色分别为 `resume-github-production`、`resume-github-development`；配置证据及首轮发布状态见 [部署记录](deploy/README.md#双环境配置记录2026-10-20)。
 
 两套线上 API 都使用 `NODE_ENV=production`，通过 `RELEASE_COMMIT` 和 `DEPLOY_ENV=prod|dev` 区分版本，而非使用 Node 开发模式。API 发布包包含 `version.json` 与 `release.env`，健康响应包含提交及环境。Pages 根目录 `deployment-state.json` 记录整站 generation 和两环境 commit，各前端路径的 `version.json` 记录自身版本。
 
