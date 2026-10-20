@@ -253,9 +253,10 @@ test('both API operations explicitly pass CLI global region as well as API Regio
 });
 test('official CLI local parser/profile errors from stderr or stdout map to fixed safe diagnostics', async () => {
   for (const [raw, expected] of [
-    ["ERROR: region can't be empty\n\nConfiguration failed, use `aliyun configure` to configure it\n", 'CLI_REGION_REQUIRED'],
+    ["\u001b[1;31mERROR: region can't be empty\n\u001b[0m\u001b[1;33m\nConfiguration failed, use `aliyun configure` to configure it\n\u001b[0m", 'CLI_REGION_REQUIRED'],
     ["ERROR: profile SECRET is not configure yet\nConfiguration failed, use `aliyun configure` to configure it.\n", 'CLI_CREDENTIALS_REQUIRED'],
     ["ERROR: invalid flag --SECRET_COMMAND_CONTENT\n", 'CLI_ARGUMENT_ERROR'],
+    ['ERROR: "--SECRET_COMMAND_CONTENT" is not a valid parameter or flag. See `aliyun help ecs RunCommand`.\n', 'CLI_ARGUMENT_ERROR'],
   ]) {
     for (const stream of ['stdout', 'stderr']) {
       let count = 0;

@@ -170,3 +170,23 @@ test('verify retries stale publication and reports bounded failure without exter
   assert.ok(clock <= 20_000);
   await assert.rejects(verify('https://example.github.io/dev/', '2-1'), /without a path/);
 });
+
+
+test('verify default allows the full ten-minute publication window with bounded requests', async () => {
+  let clock = 0;
+  let calls = 0;
+  await assert.rejects(verify(origin, '2-1', {
+    now: () => clock,
+    sleep: async ms => { assert.equal(ms, 5_000); clock += ms; },
+    fetchImpl: async (_url, options) => {
+      assert.ok(options.signal instanceof AbortSignal);
+      // Model each fetch taking its entire existing ten-second request timeout.
+      clock += 10_000;
+      calls++;
+      return response(state('1-1'));
+    },
+  }), /Expected generation 2-1, got 1-1/);
+  assert.equal(calls, 40);
+  assert.equal(clock, 595_000);
+  assert.ok(clock <= 600_000);
+});

@@ -137,7 +137,7 @@ export async function guard(origin, previousDir, { fetchImpl = fetch } = {}) {
   if (published.generation !== previous.state.generation || ['prod', 'dev'].some(environment => published.environments[environment]?.commit !== previous.state.environments[environment]?.commit)) fail('Published Pages state differs from saved state; recover state before deploying');
 }
 
-export async function verify(origin, expectedGeneration, { fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now, timeoutMs = 120_000 } = {}) {
+export async function verify(origin, expectedGeneration, { fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), now = Date.now, timeoutMs = 600_000 } = {}) {
   if (!validGeneration(expectedGeneration)) fail('Invalid expected generation');
   stateURL(origin);
   const deadline = now() + timeoutMs;

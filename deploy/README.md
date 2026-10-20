@@ -113,7 +113,7 @@ systemctl reload nginx.service
 
 ## 双环境自动部署
 
-双环境自动化代码及外部 IAM/OIDC、GitHub Environments、服务器初始化已完成配置。首次正式发布在通过校验后，云助手调用失败，尚在修复；正式与开发首次发布及公网验证仍待完成。本文此前 2026-10-19 的记录属于原环境准备阶段，不代表新流程已发布成功。
+双环境自动化代码及外部 IAM/OIDC、GitHub Environments、服务器初始化已完成配置。正式与开发环境均已完成首次发布、公网 HTTPS 健康检查及浏览器 Mock 对话验证；聊天未接入真实模型，运维和发布未使用 SSH。本文此前 2026-10-19 的记录属于原环境准备阶段。
 
 | 项目 | 正式环境 | 开发环境 |
 | --- | --- | --- |
@@ -137,7 +137,9 @@ systemctl reload nginx.service
 | GitHub Environments | `production`（ID `24782423084`）仅 `master`；`development`（ID `24782598685`）仅 `develop`。两者均已配置三项部署变量 |
 | 服务器初始化 | 14:06 完成，云助手调用 `t-bj070l0pizz7h8g` 返回退出码 0；备份 `/var/backups/resume-environments/20261020T060624-21853/` |
 
-首次初始化遇到 Nginx 重载后短暂 404，已通过有界健康重试修复（提交 `8920e24`），再执行成功。PR #1 已合入 `master`（`57e65b0`）。首次正式 Actions [运行 39378693783](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39378693783) 通过 validate，release 的云助手 step 0 因 CLI 退出码 3 失败；该运行不构成发布成功证据，正在修复。正式与开发两环境均需等待后续成功运行和公网验证后记录上线结果。
+首次初始化遇到 Nginx 重载后短暂 404，已通过有界健康重试修复（提交 `8920e24`），再执行成功。PR #1 已合入 `master`（`57e65b0`）。首次正式 [运行 39378693783](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39378693783) 的云助手 CLI 因缺少全局 `--region` 退出 3；修复后 [运行 39379174679](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39379174679) 完整成功，正式 API 和 Pages 均为 `f7c0f67f83598b4538772ad6e859f97e7478a22f`，浏览器 Mock 对话通过。开发 [运行 39379416372](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39379416372) 已发布 API，但 Pages 公网 generation 在两分钟内未更新，因此未保存状态；后续提交将严格校验窗口延长为十分钟，并输出组合包的两环境公开版本清单；该次超时的具体原因未确认，不据此归因于同 SHA 或 CDN。
+
+开发环境随后通过 [运行 39380080618](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39380080618) 首次完整发布成功，提交为 `a4a61aeda93636c0592ae79da9732e4b5e0e85bb`；浏览器 `/dev/` 页面 Mock 对话通过，公网 `/dev/healthz` 返回对应提交与 `environment: "dev"`。上述提交号记录首次成功验证，不表示永远是当前版本；后续以公网 `deployment-state.json`、各路径 `version.json` 及 API 健康响应核对当前版本。
 
 ### 一次性初始化
 
@@ -153,6 +155,8 @@ systemctl reload nginx.service
 4. 将仓库 Pages 来源设为 GitHub Actions。首次先运行 `master`，建立根站点与 `pages-state`；正式发布验证完成后再运行 `develop`。
 
 ### 自动发布顺序
+
+日常先在 `develop` 开发并推送，等待自动发布后验证 `https://qishaoxuan.github.io/dev/`；再通过 PR 以 merge commit 合入 `master`，触发正式发布并验证根站点。不要用强制推送或复制另一分支 HEAD 替代正常合并与已发布状态。
 
 `.github/workflows/pages.yml` 对 `master`、`develop` 的 PR 执行检查，不发布；两分支 push 或在该分支手动运行时，检查通过后自动发布。先拒绝已落后于对应远程分支 HEAD 的运行，再在全局 `resume-release` 并发组中串行执行完整 release，避免两分支互相覆盖 Pages。
 

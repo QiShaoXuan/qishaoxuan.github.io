@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 
 export const CHUNK_BYTES = 9000;
 export const COMMAND_LIMIT = 24 * 1024;
@@ -56,11 +57,12 @@ const transientApiRoots = new Set(['Throttling', 'ThrottlingException', 'Interna
 // Parse only typed diagnostic fields. Untrusted CLI prose, request URLs, credentials and
 // command contents never become part of an exception or a log line.
 export function cliFailure(stderr = '', { code, status, exitCode, localCode, timedOut = false } = {}) {
+  stderr = stripVTControlCharacters(stderr);
   // Known CLI-local messages are mapped to fixed labels, never copied to diagnostics.
   if (!localCode) {
     if (/(?:^|\n)(?:ERROR: )?region can't be empty\s*(?:\n|$)/.test(stderr)) localCode = 'CLI_REGION_REQUIRED';
     else if (/(?:^|\n)Configuration failed, use `aliyun configure` to configure it\.?\s*(?:\n|$)/.test(stderr)) localCode = 'CLI_CREDENTIALS_REQUIRED';
-    else if (/(?:^|\n)ERROR: (?:invalid flag |unknown flag |not support flag form |too many arguments|missing required parameter)/.test(stderr)) localCode = 'CLI_ARGUMENT_ERROR';
+    else if (/(?:^|\n)ERROR: (?:invalid flag |unknown flag |not support flag form |too many arguments|missing required parameter|"[^"\n]{1,100}" is not a valid parameter or flag\.)/.test(stderr)) localCode = 'CLI_ARGUMENT_ERROR';
   }
   let structured;
   try { structured = JSON.parse(stderr); } catch { /* CLI also emits line-based SDK errors. */ }

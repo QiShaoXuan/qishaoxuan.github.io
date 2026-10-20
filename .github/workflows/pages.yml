@@ -127,6 +127,23 @@ jobs:
         run: >-
           node scripts/pages-state.mjs prepare "$DEPLOY_ENV" "$GITHUB_SHA" "$GENERATION"
           .artifacts/release/apps/web/dist .artifacts/pages-state .artifacts/pages-site
+      - name: Inspect combined Pages release
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile, access } from 'node:fs/promises';
+          const root = '.artifacts/pages-site';
+          const state = JSON.parse(await readFile(`${root}/deployment-state.json`, 'utf8'));
+          console.info('Pages state:', JSON.stringify(state));
+          for (const [environment, expected] of Object.entries(state.environments)) {
+            const directory = environment === 'dev' ? `${root}/dev` : root;
+            await access(`${directory}/index.html`);
+            const version = JSON.parse(await readFile(`${directory}/version.json`, 'utf8'));
+            if (version.commit !== expected.commit || version.environment !== environment) {
+              throw new Error(`Mismatched Pages version: ${environment}`);
+            }
+            console.info(`${environment} index.html verified:`, JSON.stringify(version));
+          }
+          NODE
       - uses: aliyun/setup-aliyun-cli-action@09a5f86915bb556e27bf050e9a5e339aeb073df5 # v1
         with:
           version: '3.5.1'
