@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeftStartOnRectangleIcon, ArrowRightStartOnRectangleIcon, ArrowsPointingOutIcon, ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, SparklesIcon } from '@heroicons/react/24/outline';
-import { sendMockMessage } from '../api';
+import { ArrowLeftStartOnRectangleIcon, ArrowRightStartOnRectangleIcon, ArrowsPointingOutIcon, ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, SparklesIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { streamChat } from '../api';
+import { historyFor, startTurn } from './conversation';
+import type { Turn } from './conversation';
+import { createConversationStorage, storageKey } from './storage';
 import { ChatComposer } from './beautiful/ChatComposer';
 import { ThinkingState } from './beautiful/ThinkingState';
 import { clampPosition, dockTarget, floatingSize, initialPosition, passedDragThreshold } from './geometry';
@@ -9,8 +12,7 @@ import type { DockSide, Point } from './geometry';
 import './chat.css';
 
 export type ChatMode = 'floating' | 'left' | 'right';
-type Message = { id: number; role: 'user' | 'assistant'; content: string };
-type RequestState = { state: 'idle' } | { state: 'pending'; content: string } | { state: 'error'; content: string; message: string };
+type RequestState = { state: 'idle' } | { state: 'pending'; content: string; generating: boolean } | { state: 'error'; content: string; message: string };
 type Drag = { pointerId: number; start: Point; origin: Point; target: DockSide | null; active: boolean; docked: boolean };
 const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
 
@@ -25,11 +27,14 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
   const [snap, setSnap] = useState<DockSide | null>(null);
   const [dragging, setDragging] = useState(false);
   const [draft, setDraft] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [storage] = useState(() => createConversationStorage(() => window.localStorage, storageKey(import.meta.env.BASE_URL, import.meta.env.DEV)));
+  const [messages, setMessages] = useState<Turn[]>(() => storage.load());
+  const [storageUnavailable, setStorageUnavailable] = useState(storage.unavailable);
+  const messagesRef = useRef(messages);
   const [request, setRequest] = useState<RequestState>({ state: 'idle' });
   const pending = useRef<AbortController | null>(null);
   const drag = useRef<Drag | null>(null);
-  const nextId = useRef(0);
+  const nextId = useRef(Math.max(-1, ...messages.map((turn) => turn.id)) + 1);
   const input = useRef<HTMLTextAreaElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
   const thread = useRef<HTMLDivElement>(null);
@@ -123,29 +128,65 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
     if (!cancelled && current.active && current.target) onModeChange(current.target);
   }
 
+  function updateMessages(update: (current: Turn[]) => Turn[]) {
+    const next = update(messagesRef.current);
+    messagesRef.current = next;
+    setMessages(next);
+    storage.save(next);
+    setStorageUnavailable(storage.unavailable);
+  }
+
+  function stop() {
+    const controller = pending.current;
+    if (!controller) return;
+    pending.current = null;
+    controller.abort();
+    updateMessages((current) => current.map((turn) => turn.status === 'pending' ? { ...turn, status: 'interrupted' } : turn));
+    const last = messagesRef.current.at(-1);
+    setRequest(last ? { state: 'error', content: last.user, message: '已停止本次回复，未完成内容不会用于后续对话。' } : { state: 'idle' });
+  }
+
+  function clear() {
+    pending.current?.abort();
+    pending.current = null;
+    updateMessages(() => []);
+    setRequest({ state: 'idle' });
+  }
+
   async function send(content: string, retry = false) {
     const text = content.trim();
     if (pending.current || !text || text.length > 4000) return;
     const controller = new AbortController();
     pending.current = controller;
-    if (!retry) {
-      setMessages((current) => [...current, { id: nextId.current++, role: 'user', content: text }]);
-      setDraft('');
-    }
-    setRequest({ state: 'pending', content: text });
-    let timedOut = false;
-    const timeout = window.setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
+    const id = nextId.current++;
+    const history = historyFor(messagesRef.current, text);
+    updateMessages((current) => startTurn(current, id, text, retry));
+    if (!retry) setDraft('');
+    setRequest({ state: 'pending', content: text, generating: false });
+    let finished = false;
     try {
-      const reply = await sendMockMessage(text, controller.signal);
+      await streamChat(history, controller.signal, (event) => {
+        if (pending.current !== controller || controller.signal.aborted) return;
+        if (event.type === 'meta') updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, mode: event.mode } : turn));
+        if (event.type === 'delta') {
+          updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, assistant: turn.assistant + event.content } : turn));
+          setRequest({ state: 'pending', content: text, generating: true });
+        }
+        if (event.type === 'done') {
+          finished = true;
+          updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, sources: event.sources, finishReason: event.finishReason } : turn));
+        }
+      });
       if (pending.current !== controller || controller.signal.aborted) return;
-      setMessages((current) => [...current, { id: nextId.current++, role: 'assistant', content: reply.message.content }]);
-      setRequest({ state: 'idle' });
-    } catch {
-      if (pending.current === controller) {
-        setRequest({ state: 'error', content: text, message: timedOut ? '回复超时，请重试。' : controller.signal.aborted ? '已停止本次回复。' : '暂时无法连接，请重试。' });
-      }
+      if (!finished || !messagesRef.current.find((turn) => turn.id === id)?.assistant.trim()) throw new Error('未收到完整回复，请重试。');
+      const limited = messagesRef.current.find((turn) => turn.id === id)?.finishReason === 'length';
+      updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, status: limited ? 'interrupted' : 'complete' } : turn));
+      setRequest(limited ? { state: 'error', content: text, message: '回复已达到长度上限，未完成内容不会用于后续对话。' } : { state: 'idle' });
+    } catch (error) {
+      if (pending.current !== controller) return;
+      updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, status: 'error' } : turn));
+      setRequest({ state: 'error', content: text, message: error instanceof Error ? error.message : '连接中断，请重试。' });
     } finally {
-      window.clearTimeout(timeout);
       if (pending.current === controller) pending.current = null;
     }
   }
@@ -167,24 +208,30 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
           else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         }} className="chat-panel" data-mode={mode} data-dragging={dragging || undefined} style={mode === 'floating' && !mobile ? { left: position.x, top: position.y } : undefined}>
           <header className="chat-header" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={(event) => endDrag(event)} onPointerCancel={(event) => endDrag(event, true)} onLostPointerCapture={(event) => endDrag(event, true)}>
-            <div className="chat-heading"><SparklesIcon aria-hidden="true" /><div><h2 id="chat-title">关于我的经历</h2><span>简历对话 · 演示模式</span></div></div>
+            <div className="chat-heading"><SparklesIcon aria-hidden="true" /><div><h2 id="chat-title">AI 简历助手</h2><span>基于公开简历回答</span></div></div>
             <div className="chat-actions">
               {!mobile && <>
                 <button type="button" onClick={() => changeMode('left')} title="停靠左侧" aria-label="停靠左侧" aria-pressed={mode === 'left'}><ArrowLeftStartOnRectangleIcon aria-hidden="true" /></button>
                 <button type="button" onClick={() => changeMode('right')} title="停靠右侧" aria-label="停靠右侧" aria-pressed={mode === 'right'}><ArrowRightStartOnRectangleIcon aria-hidden="true" /></button>
                 {mode !== 'floating' && <button type="button" onClick={() => changeMode('floating')} title="恢复浮窗" aria-label="恢复浮窗"><ArrowsPointingOutIcon aria-hidden="true" /></button>}
               </>}
+              <button type="button" onClick={clear} title="清空对话" aria-label="清空对话"><TrashIcon aria-hidden="true" /></button>
               <button type="button" onClick={close} title="关闭聊天" aria-label="关闭聊天"><XMarkIcon aria-hidden="true" /></button>
             </div>
           </header>
           <div className="chat-thread" ref={thread} role="log" aria-label="聊天记录" aria-live="polite" aria-relevant="additions text">
             {messages.length === 0 && <div className="chat-welcome"><span className="chat-welcome-icon"><ChatBubbleLeftRightIcon aria-hidden="true" /></span><h3>从一段对话开始</h3><p>工作经历、项目实践，或是协作方式，<br />你想先了解哪一部分？</p><div className="chat-suggestions">{['聊聊你的工作经历', '介绍一个代表项目', '你如何与团队协作？'].map((text) => <button key={text} type="button" onClick={() => { void send(text); }}>{text}</button>)}</div></div>}
-            {messages.map((message) => <div key={message.id} className="beautiful-message" data-role={message.role}><span className="chat-message-label">{message.role === 'user' ? '你' : '演示回复'}</span><p>{message.content}</p></div>)}
-            {request.state === 'pending' && <ThinkingState />}
+            {messages.map((turn) => <div key={turn.id} className="chat-turn">
+              <div className="beautiful-message" data-role="user"><span className="chat-message-label">你</span><p>{turn.user}</p></div>
+              {(turn.assistant || turn.status === 'interrupted' || turn.status === 'error') && <div className="beautiful-message" data-role="assistant"><span className="chat-message-label">{turn.mode === 'mock' ? '演示回复' : 'AI 回复'}{turn.finishReason === 'length' ? ' · 达到长度上限' : turn.status === 'interrupted' ? ' · 已停止 / 中断' : turn.status === 'error' ? ' · 未完成' : ''}</span><p>{turn.assistant || '未生成回复。'}</p>{turn.status === 'complete' && !!turn.sources?.length && <p className="chat-sources">参考：{turn.sources.map((source) => source.title).join('、')}</p>}</div>}
+            </div>)}
+            {request.state === 'pending' && <ThinkingState generating={request.generating} />}
+            {request.state === 'idle' && ['interrupted', 'error'].includes(messages.at(-1)?.status ?? '') && <div className="chat-error" role="status"><p>上次回复已中断，可以重新发送。</p><button type="button" onClick={() => { void send(messages.at(-1)!.user, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
             {request.state === 'error' && <div className="chat-error" role="status"><p>{request.message}</p><button type="button" onClick={() => { void send(request.content, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
           </div>
-          <ChatComposer draft={draft} onDraftChange={setDraft} pending={request.state === 'pending'} onSend={() => { void send(draft); }} onCancel={() => pending.current?.abort()} inputRef={input} />
-          <p className="chat-disclaimer">当前为固定演示回复，尚未接入 AI 模型。</p>
+          <ChatComposer draft={draft} onDraftChange={setDraft} pending={request.state === 'pending'} onSend={() => { void send(draft); }} onCancel={stop} inputRef={input} />
+          {storageUnavailable && <p className="chat-disclaimer" role="status">本地存储不可用，当前对话仅在内存中保留。</p>}
+          <p className="chat-disclaimer">AI 可能出错。对话上下文将发送至 DeepSeek；记录仅保存在本浏览器，可清空。</p>
         </section>
       </>}
     </>

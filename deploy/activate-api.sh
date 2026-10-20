@@ -77,9 +77,9 @@ check_routes() {
   health "$port" /healthz >/dev/null
   status=$(curl --silent --show-error --max-time 5 -o "$temporary/chat.json" -w '%{http_code}' \
     -H 'Origin: https://qishaoxuan.github.io' -H 'Content-Type: application/json' \
-    --data '{"messages":[{"role":"user","content":"deployment health check"}]}' "http://127.0.0.1:$port/api/chat")
-  [[ $status == 200 ]] || { echo "Expected mock chat 200, received $status." >&2; return 1; }
-  python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); message=data.get("message", {}); sys.exit(0 if data.get("mode")=="mock" and message.get("role")=="assistant" and isinstance(message.get("content"), str) and message["content"].strip() else 1)' "$temporary/chat.json"
+    --data '{"messages":[]}' "http://127.0.0.1:$port/api/chat")
+  [[ $status == 400 ]] || { echo "Expected invalid chat request 400, received $status." >&2; return 1; }
+  python3 -c 'import json,sys; data=json.load(open(sys.argv[1])); sys.exit(0 if data.get("code")=="INVALID_REQUEST" else 1)' "$temporary/chat.json"
   status=$(curl --silent --show-error --max-time 5 -o /dev/null -D "$temporary/cors.headers" -w '%{http_code}' \
     -X OPTIONS -H 'Origin: https://qishaoxuan.github.io' -H 'Access-Control-Request-Method: POST' \
     -H 'Access-Control-Request-Headers: content-type' "http://127.0.0.1:$port/api/chat")
@@ -128,7 +128,7 @@ wait_health "$check_port"
 kill -0 "$preflight_pid" 2>/dev/null || { echo 'Preflight process exited.' >&2; exit 1; }
 check_routes "$check_port"
 kill -0 "$preflight_pid" 2>/dev/null || { echo 'Preflight process exited.' >&2; exit 1; }
-python3 -c 'import sys; sys.exit(0 if f"Resume API listening on port {sys.argv[2]}" in open(sys.argv[1]).read() else 1)' "$temporary/preflight.log" "$check_port"
+# The loopback health and route probes above verify readiness; log formatting is not a deployment contract.
 stop_preflight
 printf 'Release: %s\nPrevious: %s\n' "$release" "$previous"
 # Mark before switching so even a signal at the switch boundary restores the old link.

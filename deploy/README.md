@@ -88,7 +88,7 @@ Certbot 客户端定期维护更新，更新后再做续期演练：
 
 ## 云助手管理与检查
 
-后续服务器管理、部署与排障统一使用云助手，不再使用 SSH / SCP。入口：[ECS 云助手，北京地域](https://ecs.console.aliyun.com/cloud-assistant/region/cn-beijing/server)。
+Git 操作优先使用本机 Git。后续阿里云服务器管理、部署与排障仅通过 IAB 浏览器中的 ECS 云助手，不再使用 SSH / SCP。入口：[ECS 云助手，北京地域](https://ecs.console.aliyun.com/cloud-assistant/region/cn-beijing/server)。
 
 1. 选择公网 IP 为 `101.201.78.159` 的实例，确认云助手状态正常。
 2. 创建 Shell 命令，应用操作选择执行用户 `resume`、执行路径 `/srv/resume`；发布任务超时可设为 300 秒。
@@ -163,7 +163,7 @@ systemctl reload nginx.service
 1. 执行 `npm ci`、Lint、类型检查、测试，按目标构建前端：正式 base `/`、API base `https://101.201.78.159`；开发 base `/dev/`、API base `https://101.201.78.159/dev`。
 2. `npm run package:api -- prod "$(git rev-parse HEAD)"`（开发改为 `dev`）编译 API，生成 `.artifacts/api-release.tgz`：平铺 JS、最小运行清单、独立生产锁、`version.json`、`release.env`。后两项保存 `commit` / `environment` 及 `RELEASE_COMMIT` / `DEPLOY_ENV`；不含依赖目录、开发工具、原始私人资料或密钥。
 3. 校验 `pages-state` 与公网 `deployment-state.json` 一致，再从已保存的静态产物构造完整 Pages 包，仅替换本次环境，不重构另一分支。OIDC 获取临时凭证后，`scripts/cloud-assistant.mjs` 按环境普通用户分块传包、核验 SHA256、安全解压，在新 release 内 `npm ci --omit=dev --ignore-scripts`，运行激活脚本。
-4. 激活脚本在本环境预检端口验证 commit、environment、健康、Mock 200 与 CORS，切换 `current` 后重启对应 unit，再验证运行端口。云助手脚本另核验公网健康、Mock 与预检。API 成功后才发布完整 Pages artifact。
+4. 激活脚本在本环境预检端口验证 commit、environment、健康、非法聊天请求 400 / `INVALID_REQUEST` 与 CORS，切换 `current` 后重启对应 unit，再验证运行端口。云助手脚本另核验公网健康、非法请求校验与 CORS 预检。API 成功后才发布完整 Pages artifact。
 5. Pages 发布后轮询公网 generation，确认本次发布后才将完整静态站点及元数据提交到 `pages-state`。此分支不是源码分支，不触发新的应用发布。
 
 云助手发布创建的版本目录为 `<发布根>/releases/<commit>-<run_id>-<run_attempt>/`；systemd 读取全局环境文件和当前版本 `release.env`，无需在线编译 TypeScript。手动排障时，激活脚本的完整调用形式为：
@@ -188,14 +188,14 @@ curl --fail https://qishaoxuan.github.io/dev/version.json
 
 API 健康结果除 `status: "ok"`、`service: "resume-api"`，还应包含所发布的 40 位 `commit` 和 `environment: "prod"|"dev"`。Pages 整站状态记录 `generation: "<run_id>-<run_attempt>"` 及两环境 commit；各路径 `version.json` 记录本环境最后一次更新的 commit、environment、generation，未更新环境的 generation 可保持旧值。
 
-简历页面与聊天面板已实现。合法 `POST /api/chat`（开发为 `/dev/api/chat`）返回 HTTP 200 和 `{ mode: "mock", message: { role: "assistant", content: string } }`。固定内容为“这是一条 Mock 测试回复，聊天链路已接通。正式工作经历问答将在后续接入。”；不调用模型、不回显用户内容、不读取 `private/`。浏览器还需分别验证两前端路径的聊天请求路由及异常提示。
+DeepSeek 接入已完成本地验证；代码发布不会自动迁移本机密钥或更改线上模型配置，此前首次发布的 Mock 验证是历史记录。API 默认 `API_CHAT_MODE=mock`，服务端可配置 `deepseek` 及 `DEEPSEEK_API_KEY` 启用真实模型流式回复，配置与显式本机 smoke 命令见 [项目说明](../PROJECT.md#环境变量)。自动部署不强制 Mock 模式，也不发送有效聊天：回环预检、激活后检查及公网检查均 POST `{"messages":[]}`，要求 HTTP 400 且 `code: "INVALID_REQUEST"`，保留健康元数据和 CORS 检查；这不证明真实模型可用，不会主动发起付费模型调用。
 
 - API 预检失败时不切换运行版本；切换后的健康或路由验证失败时，激活脚本恢复旧链接并重启。回滚本身失败会明确报错，需云助手检查对应 unit。
 - API 已激活但公网检查或 Pages 发布失败时，不自动回滚 API；旧前端仍保留。前后端接口需保持兼容，再修复并从当前分支 HEAD 重试。
 - Pages 已发布但 generation 验证或 `pages-state` 保存失败时，公网可能已经更新；下次 guard 会拒绝不一致状态。先执行下节状态恢复，禁止直接重跑去覆盖另一环境。
 - Pages 与 API 不是跨平台事务；另一个环境的静态产物来自最近成功保存的状态，不保证其 API 在故障前后自动回滚。
 
-API 仅信任回环代理传递的客户端地址，Nginx 覆盖 `X-Forwarded-For`；Mock 聊天默认每 IP 每分钟 10 次，健康和预检不计入额度，计数在单进程内存中。API 不记录聊天正文；真实模型以后接入时再增加服务端密钥、总预算与并发控制。
+API 仅信任回环代理传递的客户端地址，Nginx 覆盖 `X-Forwarded-For`；聊天默认每 IP 每分钟 10 次，健康和 CORS 预检不计入额度，计数在单进程内存中。真实模型默认最大并发 2、每日请求 100、输出 1024 token（最大 2048）、超时 60000 毫秒；内存计数重启清空，不是持久账单或硬预算。密钥仅置于服务端环境文件，不进入 API 包、Pages 或 Git。结构化日志由 systemd 收集到 journal，包含状态、耗时及 prompt / knowledge 版本，不存聊天正文、完整 prompt、上游响应正文或密钥。排查时在云助手中按目标用户检查对应 unit 的 journal；本轮仅完成本地验证，未读取线上日志。
 
 ### 恢复已发布 Pages 状态
 
@@ -248,6 +248,6 @@ git -C "$RECOVERY_ROOT/state" push origin HEAD:refs/heads/pages-state
 
 ## 后续范围
 
-当前保留 Mock，真实模型与 SSE 不属于双环境部署任务。后续按公开范围提炼角色设定、配置服务端密钥与预算，并继续验证日志隐私。自有域名不是当前 IP HTTPS 的前置条件。
+本地已支持 Mock 与 DeepSeek SSE，尚未发布；部署检查不调用真实模型。上线前分别配置目标环境的服务端模式、密钥和额度，并独立验证真实模型与日志隐私。自有域名不是当前 IP HTTPS 的前置条件。
 
 参考：[Node 官方下载](https://nodejs.org/en/download)、[Nginx 代理缓冲](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering)。

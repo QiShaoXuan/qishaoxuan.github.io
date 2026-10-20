@@ -106,3 +106,6 @@
   .beautiful-shimmer { color: var(--ink-2); background: none; }
 }
 @media print { .chat-panel, .chat-launcher, .chat-snap-preview { display: none !important; } }
+
+.chat-turn { display: flex; flex-direction: column; gap: 18px; flex-shrink: 0; }
+.beautiful-message .chat-sources { margin-top: 8px; color: var(--ink-3); font-size: 12px; }
