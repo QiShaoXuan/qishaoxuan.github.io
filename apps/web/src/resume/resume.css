@@ -1,0 +1,319 @@
+/* Adapted from tw93/Kami assets/templates/resume.html (MIT).
+   Template rules below are scoped; responsive screen overrides follow.
+   Spacing follows demo-musk-resume.pdf; the requested font is PingFang SC. */
+
+
+
+  .resume-document * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  .resume-document {
+    --parchment: #fafaf8;
+    --ivory:     #faf9f5;
+    --border:    #e8e6dc;
+    --border-soft: #e5e3d8;
+    --near-black: #141413;
+    --dark-warm: #3d3d3a;
+    --olive:     #504e49;
+    --stone:     #6b6a64;
+    --brand:     #1B365D;
+    --brand-tint: #EEF2F7;          /* solid equivalent of rgba(1B365D, 0.08), avoids tag double-rectangle bug */
+    --resume-font: var(--font-sans);
+  }
+
+
+
+
+
+  .resume-document {
+    color: var(--near-black);
+    font-family: var(--resume-font);
+    font-size: 9.2pt;
+    line-height: 1.42;
+    letter-spacing: 0.3pt;
+    widows: 3;
+    orphans: 3;
+  }
+
+  .resume-document .serif {
+    font-family: var(--resume-font);
+  }
+
+  .resume-document a { color: var(--brand); text-decoration: none; }
+
+  /* HEADER */
+  .resume-document .header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 4.2mm;
+    padding-bottom: 2.3mm;
+    border-bottom: 0.6pt solid var(--border);
+  }
+  .resume-document .header > div:first-child { flex-shrink: 0; }
+  .resume-document .name {
+    font-family: var(--resume-font);
+    font-size: 26.5pt;
+    font-weight: 500;
+    letter-spacing: 0.5pt;
+    color: var(--near-black);
+    line-height: 1;
+    margin-bottom: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 2.2mm;
+    white-space: nowrap;
+  }
+  .resume-document .alias {
+    font-size: 12.5pt;
+    font-weight: 400;
+    color: var(--stone);
+    letter-spacing: 0.2pt;
+  }
+  .resume-document .alias::before {
+    content: "";
+  }
+  .resume-document .tagline { font-size: 9.5pt; color: var(--olive); line-height: 1.3; }
+  .resume-document .tagline .accent { color: var(--brand); font-weight: 500; }
+
+  .resume-document .contact {
+    text-align: right;
+    font-size: 9pt;
+    color: var(--stone);
+    line-height: 1.5;
+    margin-bottom: -0.5mm;
+  }
+  .resume-document .contact a { color: var(--dark-warm); }
+  .resume-document .contact .loc { color: var(--olive); font-weight: 500; }
+  .resume-document .contact .role { color: var(--brand); font-size: 10.5pt; font-weight: 500; }
+  .resume-document .contact .sep { color: var(--border); margin: 0 0.4em; }
+
+  /* METRICS */
+  .resume-document .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 6mm;
+    margin-bottom: 3mm;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .resume-document .metric {
+    background: transparent;
+    padding: 1mm 0 1.2mm;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.7mm;
+    min-width: 0;
+    break-inside: avoid;
+  }
+  .resume-document .metric-value {
+    font-family: var(--resume-font);
+    font-size: 13pt;
+    font-weight: 500;
+    color: var(--brand);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .resume-document .metric-label {
+    font-size: 9pt;
+    color: var(--olive);
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .resume-document .metric-value .unit {
+    font-size: 10.5pt;
+    margin-left: 0.3mm;
+    font-weight: 500;
+    color: var(--brand);
+  }
+
+  .resume-document .metrics--stack .metric {
+    gap: 0.5mm;
+    padding-bottom: 2mm;
+    border-bottom: 0.3pt dotted var(--border);
+  }
+
+  /* SECTION */
+  .resume-document .section-title {
+    font-family: var(--resume-font);
+    font-size: 12.5pt;
+    font-weight: 500;
+    color: var(--near-black);
+    border-bottom: 0.5pt solid var(--border);
+    padding: 0 0 1mm 0;
+    margin: 5.8mm 0 1.7mm 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2mm;
+  }
+  .resume-document .section-title .sub {
+    font-family: var(--resume-font);
+    font-weight: 400;
+    font-size: 9pt;
+    color: var(--stone);
+    letter-spacing: 0.3pt;
+  }
+
+  .resume-document section:first-of-type .section-title { margin-top: 0; }
+  .resume-document .page-break > .section-title { margin-top: 0; }
+
+  /* Unify gap from section-title bottom border to first content's first line = 3mm
+     (section-title margin-bottom 1.8mm + first-child top spacing 1.2mm) */
+  .resume-document .section-title + .skill-row { padding-top: 1.2mm; }
+  .resume-document .section-title + .edu-row { padding-top: 1.2mm; }
+
+  /* SUMMARY */
+  .resume-document .summary { font-size: 9.2pt; line-height: 1.42; color: var(--near-black); }
+  .resume-document .summary .em-brand { color: var(--brand); }
+  .resume-document .summary .hl { color: var(--brand); }
+
+  /* TIMELINE */
+  .resume-document .timeline { display: flex; gap: 6mm; margin-bottom: 2mm; margin-left: 0; margin-right: 0; }
+  .resume-document .tl-step {
+    flex: 1; background: transparent;
+    padding: 0.8mm 0;
+    break-inside: avoid;
+  }
+  .resume-document .tl-top {
+    display: flex; align-items: baseline; gap: 1.5mm;
+    margin-bottom: 0.5mm;
+  }
+  .resume-document .tl-year {
+    font-family: var(--resume-font);
+    font-size: 11pt; font-weight: 500;
+    color: var(--brand); line-height: 1;
+  }
+  .resume-document .tl-head {
+    font-size: 11pt; font-weight: 500;
+    color: var(--near-black);
+  }
+  .resume-document .tl-body { font-size: 9pt; color: var(--olive); line-height: 1.4; letter-spacing: 0.3pt; }
+
+  /* PROJECTS */
+  .resume-document .project {
+    padding: 2.6mm 0;
+    break-inside: avoid;
+  }
+  .resume-document .project:first-of-type { padding-top: 1.2mm; }
+  .resume-document .proj-head {
+    display: block; margin-bottom: 0.75mm;
+  }
+  .resume-document .proj-name {
+    font-family: var(--resume-font);
+    font-size: 11pt; font-weight: 500; color: var(--near-black);
+  }
+  .resume-document .proj-kind { font-size: 11pt; color: var(--olive); margin-left: 1.5mm; }
+  .resume-document .proj-role {
+    font-size: 9pt; color: var(--brand); font-weight: 500;
+    float: right; background: #EEF2F7;
+    padding: 0.4mm 1.2mm; border-radius: 2pt; letter-spacing: 0.05pt;
+    white-space: nowrap;
+  }
+  .resume-document .proj-lines { display: table; width: 100%; }
+  .resume-document .proj-row { display: table-row; }
+  .resume-document .proj-label {
+    display: table-cell; width: 11mm;
+    font-size: 9pt; color: var(--brand);
+    font-weight: 500; letter-spacing: 0.2pt;
+    padding: 0.2mm 0 0.4mm 0; vertical-align: top;
+  }
+  .resume-document .proj-text {
+    display: table-cell; font-size: 9pt;
+    color: var(--near-black); line-height: 1.4; letter-spacing: 0.3pt;
+    padding: 0 0 0.4mm 0.5mm;
+  }
+  .resume-document .proj-text .hl { color: var(--brand); }
+
+/* Browser adaptation: readable long-form content, no two-page print constraint. */
+.resume-document {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px clamp(24px, 5vw, 72px) 56px;
+  font-size: 16px;
+  line-height: 1.45;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+  background: var(--parchment);
+  outline: none;
+}
+.resume-document .header { gap: 20px; padding-bottom: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.resume-document .document-label { font-size: 11px; letter-spacing: 2px; color: var(--stone); margin-bottom: 8px; }
+.resume-document .name { font-size: 44px; line-height: 1.2; }
+.resume-document .tagline { font-size: 16px; margin-top: 6px; }
+.resume-document .contact { display: flex; flex-direction: column; gap: 3px; font-size: 14px; line-height: 1.45; font-style: normal; text-align: left; }
+.resume-document .contact a { display: flex; align-items: center; gap: 8px; }
+.resume-document .contact svg { width: 16px; height: 16px; flex: 0 0 16px; color: var(--stone); }
+.resume-document .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0 0 20px; }
+.resume-document .metric { gap: 6px; }
+.resume-document .metric-value { font-size: 32px; }
+.resume-document .metric-value .unit { font-size: 15px; margin-left: 5px; }
+.resume-document .metric-label { font-size: 13px; line-height: 1.5; white-space: normal; }
+.resume-document .section-title { font-size: 23px; line-height: 1.35; margin: 28px 0 10px; padding-bottom: 5px; }
+.resume-document .summary { font-size: 16px; line-height: 1.45; }
+.resume-document .summary .section-title { margin-top: 0; }
+.resume-document p + p { margin-top: 6px; }
+.resume-document strong { color: var(--brand); font-weight: 500; }
+.resume-document a { text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.resume-document a:hover { text-decoration: underline; }
+.resume-document a:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 2px; }
+.resume-document code { padding: 1px 4px; border-radius: 3px; background: #f0eee6; font-size: 0.87em; font-family: inherit; }
+.resume-document ul, .resume-document ol { padding-left: 1.35em; }
+.resume-document li { padding-left: 0.3em; margin-top: 6px; }
+.resume-document li > ul, .resume-document li > ol { margin-top: 4px; }
+.resume-document li li { margin-top: 4px; }
+.resume-document li > p + p { margin-top: 6px; }
+.resume-document .timeline { flex-direction: column; gap: 0; margin: 0; }
+.resume-document .tl-step { padding: 6px 0; border-bottom: 1px dotted var(--border); }
+.resume-document .tl-step:last-child { border-bottom: 0; }
+.resume-document .tl-top { display: grid; grid-template-columns: 175px minmax(0, 1fr); gap: 20px; margin: 0; line-height: 1.45; }
+.resume-document .tl-year { font-size: 14px; line-height: inherit; }
+.resume-document .tl-head { font-size: 15px; line-height: inherit; }
+.resume-document .project { padding: 12px 0; break-inside: auto; }
+.resume-document .project:first-of-type { padding-top: 0; }
+.resume-document .project:last-child { padding-bottom: 0; }
+.resume-document .proj-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin-bottom: 6px; }
+.resume-document .proj-name { font-size: 21px; line-height: 1.4; }
+.resume-document .proj-date { font-size: 14px; font-weight: 400; color: var(--stone); white-space: normal; }
+.resume-document .project > p:first-of-type { color: var(--olive); }
+.resume-document .project > ul, .resume-document .project > ol { margin-top: 8px; }
+.resume-document .personal-projects > ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; list-style: none; padding: 0; }
+.resume-document .personal-projects li { margin: 0; padding: 6px 0; border-bottom: 1px dotted var(--border); }
+.resume-document .edu-row { color: var(--olive); }
+
+@media (max-width: 767px) {
+  .resume-document { padding: 28px 24px 56px; font-size: 15px; }
+  .resume-document .header { gap: 16px; }
+  .resume-document .name { font-size: 38px; }
+  .resume-document .summary { font-size: 15px; }
+  .resume-document .metric-value { font-size: 27px; }
+  .resume-document .metric-value .unit { font-size: 13px; }
+  .resume-document .metric-label { font-size: 12px; }
+  .resume-document .section-title { font-size: 21px; margin-top: 24px; }
+  .resume-document .tl-top { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .resume-document .personal-projects > ul { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A docked chat may leave less than a tablet-width column on a desktop. */
+@container resume-region (max-width: 600px) {
+  .resume-document { padding-inline: 24px; }
+  .resume-document .tl-top { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .resume-document .personal-projects > ul { grid-template-columns: minmax(0, 1fr); }
+}
+
+@container resume-region (max-width: 480px) {
+  .resume-document .header { flex-direction: column; align-items: flex-start; }
+  .resume-document .metric-value { display: flex; flex-direction: column; gap: 6px; font-size: 27px; }
+  .resume-document .metric-value .unit { margin-left: 0; font-size: 12px; }
+  .resume-document .metric-label { font-size: 12px; }
+}
+
+@media print {
+  .resume-document { max-width: none; padding: 0; font-size: 11pt; background: white; }
+  .resume-document .header { margin-top: 0; }
+  .resume-document .section-title, .resume-document .proj-head { break-after: avoid; }
+  .resume-document a { color: inherit; }
+}

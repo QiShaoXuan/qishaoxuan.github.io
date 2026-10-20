@@ -65,7 +65,7 @@ export async function buildApp(config: ApiConfig = loadConfig()) {
     return reply.code(status).send({ code, message: status === 429 ? '请求过于频繁，请稍后重试。' : '请求无法处理。' });
   });
 
-  const health = () => ({ status: 'ok', service: 'resume-api' });
+  const health = () => ({ status: 'ok', service: 'resume-api', ...config.release });
   app.get('/healthz', health);
   app.get('/api/health', health);
   app.post('/api/chat', {

@@ -1,0 +1,39 @@
+[Unit]
+Description=Resume development API
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=resume-dev
+Group=resume-dev
+WorkingDirectory=/srv/resume-development/current
+EnvironmentFile=/etc/resume-development/resume.env
+Environment=NODE_ENV=production API_HOST=127.0.0.1 HOSTNAME=127.0.0.1 API_PORT=3100 PORT=3100 NODE_OPTIONS=--max-old-space-size=128
+EnvironmentFile=-/srv/resume-development/current/release.env
+ExecStart=/opt/node/bin/node /srv/resume-development/current/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/resume-development
+StateDirectory=resume-development
+RuntimeDirectory=resume-development
+MemoryHigh=192M
+MemoryMax=256M
+TasksMax=128
+LimitNOFILE=8192
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=resume-development
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=200
+
+[Install]
+WantedBy=multi-user.target

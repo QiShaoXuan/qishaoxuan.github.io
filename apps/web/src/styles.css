@@ -1,51 +1,31 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  color: #172c2b;
-  background: #f5f5f0;
+  color-scheme: light;
+  background: #fafaf8;
+  color: #141413;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  line-height: 1.65;
+  --chat-width: clamp(320px, 32vw, 400px);
+  --font-sans: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-sans);
 }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
-button { font: inherit; }
-.page { max-width: 880px; padding: 72px 28px 32px; margin: 0 auto; }
-.eyebrow { color: #486660; font-size: 12px; font-weight: 650; letter-spacing: .14em; margin: 0 0 16px; }
-h1 { font-size: clamp(28px, 5vw, 44px); letter-spacing: -.035em; line-height: 1.25; margin: 0; }
-.intro { color: #596b67; margin: 16px 0 36px; }
-h2 { font-size: 18px; margin: 0; }
-.connection { border: 1px solid #d7e0d9; border-radius: 20px; background: #fff; padding: 28px; }
-.section-heading { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
-.badge { border-radius: 999px; padding: 4px 12px; font-size: 12px; background: #edf0ee; color: #52665d; }
-.badge-ready { background: #e3f3e9; color: #1b6543; }
-.badge-error { background: #fff0df; color: #865117; }
-.status { color: #52655f; overflow-wrap: anywhere; min-height: 62px; padding: 4px 0; }
-.status strong { color: #172c2b; font-weight: 600; }
-button { cursor: pointer; border: 0; background: #245c4d; color: #fff; padding: 10px 20px; border-radius: 10px; min-height: 44px; }
-button:hover:not(:disabled) { background: #194535; }
-button:focus-visible { outline: 3px solid #76b4a2; outline-offset: 3px; }
-button:disabled { cursor: wait; background: #e4ebe6; color: #52655f; }
-.hint { font-size: 12px; color: #65756e; margin: 14px 0 0; }
-.mock-chat { margin-top: 24px; }
-.mock-description { font-size: 14px; color: #596b67; margin: 16px 0 20px; }
-.mock-chat label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-.mock-chat textarea { display: block; width: 100%; max-width: 100%; resize: vertical; padding: 12px; border: 1px solid #bacac0; border-radius: 10px; font: inherit; color: inherit; background: #fff; }
-.mock-chat textarea:focus-visible { outline: 3px solid #76b4a2; outline-offset: 2px; }
-.mock-chat textarea:disabled { background: #f2f5f2; }
-.mock-chat form button { margin-top: 16px; }
-.mock-result { overflow-wrap: anywhere; white-space: pre-wrap; }
-.mock-result p { margin: 16px 0 0; font-size: 14px; color: #435f53; }
-.mock-result h3 { margin: 20px 0 0; }
-.upcoming { margin-top: 36px; }
-.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 16px; }
-article { padding: 24px; border: 1px solid #dde3dc; border-radius: 16px; }
-article span { font-size: 12px; color: #647c6f; }
-h3 { font-size: 17px; margin: 8px 0; }
-article p { color: #596b67; font-size: 14px; margin: 0; }
-footer { color: #697970; font-size: 12px; margin-top: 40px; }
-@media (max-width: 540px) {
-  .page { padding: 40px 20px 24px; }
-  .connection { padding: 22px; }
-  .cards { grid-template-columns: 1fr; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 0; }
+button, input, textarea { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+.app-shell { min-height: 100svh; }
+.resume-region { min-width: 0; container: resume-region / inline-size; }
+.skip-link { position: fixed; top: 12px; left: 16px; z-index: 100; transform: translateY(-200%); padding: 10px 16px; background: #1b365d; color: #fff; border-radius: 4px; }
+.skip-link:focus { transform: translateY(0); }
+@media (min-width: 768px) {
+  .app-shell[data-chat-open='true'][data-chat-mode='left'] { padding-left: var(--chat-width); }
+  .app-shell[data-chat-open='true'][data-chat-mode='right'] { padding-right: var(--chat-width); }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media print {
+  :root { background: #fff; }
+  body { min-width: 0; }
+  .app-shell { min-height: 0; padding: 0 !important; }
+  .skip-link { display: none; }
 }

@@ -5,6 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const [environment, commit, ...extra] = process.argv.slice(2);
+if (extra.length || !['prod', 'dev'].includes(environment) || !/^[a-f0-9]{40}$/.test(commit ?? '')) {
+  throw new Error('Usage: package-api.mjs <prod|dev> <40-character commit>');
+}
 const run = (command, args, cwd) => {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
   if (result.error) throw result.error;
@@ -32,10 +36,13 @@ try {
   for (const file of files) await cp(path.join(dist, file), path.join(temporary, file));
   await writeFile(path.join(temporary, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   await cp(lockPath, path.join(temporary, 'package-lock.json'));
+  await writeFile(path.join(temporary, 'version.json'), `${JSON.stringify({ commit, environment })}\n`);
+  await writeFile(path.join(temporary, 'release.env'), `RELEASE_COMMIT=${commit}\nDEPLOY_ENV=${environment}\n`);
+  const metadata = ['version.json', 'release.env'];
   const artifacts = path.join(root, '.artifacts');
   await mkdir(artifacts, { recursive: true });
   const output = path.join(artifacts, 'api-release.tgz');
-  run('tar', ['-czf', output, '-C', temporary, 'package.json', 'package-lock.json', ...files], root);
+  run('tar', ['-czf', output, '-C', temporary, 'package.json', 'package-lock.json', ...files, ...metadata], root);
   console.info(`API release: ${output}`);
   console.info(`Files: package.json, package-lock.json, ${files.join(', ')}`);
 } finally {

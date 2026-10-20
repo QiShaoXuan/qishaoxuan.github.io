@@ -1,6 +1,6 @@
 # 简历网站部署环境
 
-统一工作仓库：`/Users/bytedance/mygit/qishaoxuan.github.io`。前端使用 GitHub Pages，聊天接口继续部署在下述 ECS；前后端代码、内容及部署配置后续均在本仓库维护。前端使用 React + TypeScript + Vite，后端使用 Node.js + TypeScript + Fastify；GitHub Pages 只接收 `apps/web/dist/` 静态产物。
+统一工作仓库：`/Users/bytedance/mygit/qishaoxuan.github.io`。前端使用 GitHub Pages，聊天接口继续部署在下述 ECS；前后端代码、内容及部署配置后续均在本仓库维护。前端使用 React + TypeScript + Vite，后端使用 Node.js + TypeScript + Fastify；GitHub Pages 只接收两环境 `apps/web/dist/` 合并后的静态产物与公开版本元数据。
 
 目标服务器：阿里云北京 ECS `101.201.78.159`，Ubuntu 24.04，2 核 2GB。
 
@@ -71,7 +71,7 @@ Certbot 客户端定期维护更新，更新后再做续期演练：
 
 参考：[Let's Encrypt IP 证书与 Certbot](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)、[Certbot 官方 pip 安装](https://certbot.eff.org/instructions?os=pip&ws=other)。
 
-## 目录与权限
+## 初始正式环境目录与权限（历史记录）
 
 | 路径 | 用途 |
 | --- | --- |
@@ -86,22 +86,21 @@ Certbot 客户端定期维护更新，更新后再做续期演练：
 
 应用 stdout/stderr 交给 journald。Nginx access log 不记录 IP、查询参数、请求体和 User-Agent；应用实现也须避免打印聊天正文、密钥及用户资料。Nginx error log 为 warn，故障时仍可能包含请求 URI、来源等诊断信息，不应把聊天内容放入 URL。
 
-## 连接与检查
+## 云助手管理与检查
 
-本机专用私钥：`/Users/bytedance/.ssh/aliyun_resume_beijing`，不能上传或提交仓库。公钥已授权 root 和 resume。主机公钥保存在本机 `/Users/bytedance/.ssh/known_hosts_aliyun_resume`。
+后续服务器管理、部署与排障统一使用云助手，不再使用 SSH / SCP。入口：[ECS 云助手，北京地域](https://ecs.console.aliyun.com/cloud-assistant/region/cn-beijing/server)。
+
+1. 选择公网 IP 为 `101.201.78.159` 的实例，确认云助手状态正常。
+2. 创建 Shell 命令，应用操作选择执行用户 `resume`、执行路径 `/srv/resume`；发布任务超时可设为 300 秒。
+3. 执行后查看输出和退出码，并核验接口或服务状态。日常检查命令如下：
 
 ```bash
-ssh -F /dev/null -i ~/.ssh/aliyun_resume_beijing \
-  -o IdentitiesOnly=yes \
-  -o UserKnownHostsFile=~/.ssh/known_hosts_aliyun_resume \
-  resume@101.201.78.159
-
 systemctl status resume.service --no-pager
 curl --fail http://127.0.0.1:3000/healthz
 curl --fail --resolve 101.201.78.159:443:127.0.0.1 https://101.201.78.159/healthz
 ```
 
-root 可查看完整日志及管理代理：
+需要查看受限日志或管理 Nginx 等系统级操作时，在对应任务已授权的范围内选择 `root` 用户执行：
 
 ```bash
 journalctl -u resume.service -n 100 --no-pager
@@ -110,73 +109,127 @@ nginx -t
 systemctl reload nginx.service
 ```
 
-安全组只允许当前管理出口 `211.95.64.140/32` 访问 22，80/443 对公网开放，保留 ICMP。出口 IP 改变后须在阿里云控制台更新 SSH 白名单，禁止为了方便直接长期开放全部端口。
+历史安全组记录中 22 端口来源为 `211.95.64.140/32`，80/443 对公网开放，保留 ICMP。双环境应用公共入口只需 80/443，3000、3100 及预检端口仅绑定回环地址，不新增公网安全组规则。后续运维使用云助手，不再随本机出口 IP 变化调整 SSH 白名单。
 
-## 发布前后端基础架构
+## 双环境自动部署
 
-以下流程用于发布连接检查页、最小 Mock 聊天联调表单与 API 基础接口；合法聊天请求返回 HTTP 200 的固定 Mock 回复，尚无模型调用或 SSE。线上是否更新，以本次发布后的实际检查为准；前述 2026-10-19 记录对应环境准备阶段。
+双环境自动化代码已实现；外部 IAM/OIDC 授权、GitHub Environments 设置、首次真实发布与公网验证尚待完成。本文此前 2026-10-19 的记录属于原环境准备阶段，不代表新流程已运行成功。
 
-### GitHub Pages
+| 项目 | 正式环境 | 开发环境 |
+| --- | --- | --- |
+| 分支 / GitHub Environment | `master` / `production` | `develop` / `development` |
+| Pages | `https://qishaoxuan.github.io/` | `https://qishaoxuan.github.io/dev/` |
+| 公网 API | `https://101.201.78.159/api` | `https://101.201.78.159/dev/api` |
+| 用户 / systemd | `resume` / `resume.service` | `resume-dev` / `resume-development.service` |
+| 发布根 / 服务 / 预检端口 | `/srv/resume` / 3000 / 3001 | `/srv/resume-development` / 3100 / 3101 |
 
-`.github/workflows/pages.yml` 在推送 `master` 后执行类型检查、Lint、测试和构建，且仅上传 `apps/web/dist/`。仓库 Pages 来源应设为 GitHub Actions。此次发布会将现有主页替换为前后端连接检查页及 Mock 聊天联调表单，正式简历与完整聊天界面尚待后续实现。
+两套服务均以普通用户运行、`NODE_ENV=production`，监听 `127.0.0.1`。Nginx 将 `/dev/api/` 去掉 `/dev` 前缀后代理到 3100；正式 API 代理到 3000。浏览器两环境的 Origin 都是 `https://qishaoxuan.github.io`，CORS 不带 `/dev` 路径。公共端口仅需 80/443；服务和预检端口不开放公网。
 
-本地可执行 `npm ci`、`npm run build:web` 检查产物。Vite 生产构建默认请求 `https://101.201.78.159`，需要覆盖时在构建前注入 `VITE_API_BASE_URL`；所有 `VITE_` 值都属于公开内容。不要将仓库根目录、`private/`、API 或部署配置作为 Pages 产物。
+### 一次性初始化
 
-### ECS API
+1. 保留现有正式服务、IP HTTPS 与自动续期配置。通过云助手以 `root` 传送并运行当前完整 `deploy/` 中的初始化脚本：
 
-在 Node 24 / npm 11 环境执行：
+   ```bash
+   bash /path/to/deploy/setup-environments.sh
+   ```
 
-```bash
-npm ci
-npm run package:api
-```
+   脚本依赖同目录的两份 service、HTTPS Nginx 配置和 `readiness/server.js`，不要只传单个脚本。它建立 `resume-dev` 用户、开发目录与环境文件、开发维护服务及各用户仅重启自身 unit 的 sudo 权限，备份配置后校验并更新 Nginx；失败时恢复配置，既有正式进程和 TLS 续期保留。新建用户、目录等资源不保证全部删除。首次开发发布前 `/dev/healthz` 可用于维护健康检查，其余业务接口仍需发布后可用。
+2. 在阿里云配置 GitHub OIDC provider（audience `sts.aliyuncs.com`）和两个 RAM 角色，信任分别绑定本仓库 `production`、`development` Environment 的 OIDC subject。角色授权仅覆盖目标实例的云助手 `RunCommand` 与调用结果查询；执行用户名分别限制为 `resume`、`resume-dev`，不能用 `root`，不能跨环境切换用户。实例所属地域为 `cn-beijing`。
+3. 在 GitHub 创建 `production`、`development` Environments，允许部署分支分别限制为 `master`、`develop`。每个 Environment 添加变量 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN_OIDC_PROVIDER_ARN`；两个角色 ARN 分别填写，实例与 provider 可相同。不配置长期 AccessKey 或 SSH 私钥。
+4. 将仓库 Pages 来源设为 GitHub Actions。首次先运行 `master`，建立根站点与 `pages-state`；正式发布验证完成后再运行 `develop`。
 
-脚本先编译 API，再生成 `.artifacts/api-release.tgz`。压缩包包含平铺后的 `apps/api/dist/*.js`、最小运行 `package.json` 和基于 `deploy/api-package-lock.json` 的独立生产锁文件；不包含 `node_modules/`、开发工具、私人资料或密钥。仓库根锁文件包含 workspaces，不能替代这个独立生产锁。
+### 自动发布顺序
 
-以 `resume` 将压缩包上传并解压到一个新的 `/srv/resume/releases/<版本>/` 目录，在该目录运行：
+`.github/workflows/pages.yml` 对 `master`、`develop` 的 PR 执行检查，不发布；两分支 push 或在该分支手动运行时，检查通过后自动发布。先拒绝已落后于对应远程分支 HEAD 的运行，再在全局 `resume-release` 并发组中串行执行完整 release，避免两分支互相覆盖 Pages。
 
-```bash
-npm ci --omit=dev --ignore-scripts
-```
+1. 执行 `npm ci`、Lint、类型检查、测试，按目标构建前端：正式 base `/`、API base `https://101.201.78.159`；开发 base `/dev/`、API base `https://101.201.78.159/dev`。
+2. `npm run package:api -- prod "$(git rev-parse HEAD)"`（开发改为 `dev`）编译 API，生成 `.artifacts/api-release.tgz`：平铺 JS、最小运行清单、独立生产锁、`version.json`、`release.env`。后两项保存 `commit` / `environment` 及 `RELEASE_COMMIT` / `DEPLOY_ENV`；不含依赖目录、开发工具、原始私人资料或密钥。
+3. 校验 `pages-state` 与公网 `deployment-state.json` 一致，再从已保存的静态产物构造完整 Pages 包，仅替换本次环境，不重构另一分支。OIDC 获取临时凭证后，`scripts/cloud-assistant.mjs` 按环境普通用户分块传包、核验 SHA256、安全解压，在新 release 内 `npm ci --omit=dev --ignore-scripts`，运行激活脚本。
+4. 激活脚本在本环境预检端口验证 commit、environment、健康、Mock 200 与 CORS，切换 `current` 后重启对应 unit，再验证运行端口。云助手脚本另核验公网健康、Mock 与预检。API 成功后才发布完整 Pages artifact。
+5. Pages 发布后轮询公网 generation，确认本次发布后才将完整静态站点及元数据提交到 `pages-state`。此分支不是源码分支，不触发新的应用发布。
 
-运行依赖在服务器依据锁文件安装，不在小内存 ECS 上执行 TypeScript 编译。发布目录布局为：
-
-```text
-/srv/resume/releases/<版本>/
-  server.js
-  app.js
-  config.js
-  package.json
-  package-lock.json
-  node_modules/
-```
-
-JS 文件平铺在版本目录根部，以匹配现有 unit 的 `/srv/resume/current/server.js`。保留旧发布目录用于回滚，不要覆盖当前运行版本。
-
-systemd 从 `/etc/resume/resume.env` 注入运行环境。保留 `NODE_ENV=production`、`HOSTNAME=127.0.0.1`、`PORT=3000`，并设置 `API_ALLOWED_ORIGINS=https://qishaoxuan.github.io`。不要把开发 `.env` 的 localhost 来源复制到生产。API 默认也仅允许这个 Pages origin，处理 OPTIONS 预检；无 Origin 的服务端请求可以访问，CORS 不替代鉴权。
-
-准备完依赖后，通过部署脚本激活新版本：
+云助手发布创建的版本目录为 `<发布根>/releases/<commit>-<run_id>-<run_attempt>/`；systemd 读取全局环境文件和当前版本 `release.env`，无需在线编译 TypeScript。手动排障时，激活脚本的完整调用形式为：
 
 ```bash
-bash /path/to/deploy/activate-api.sh /srv/resume/releases/<版本>
+bash /path/to/deploy/activate-api.sh prod '/srv/resume/releases/<版本>' '<40位commit>'
+# 开发环境由 resume-dev 执行：
+bash /path/to/deploy/activate-api.sh dev '/srv/resume-development/releases/<版本>' '<40位commit>'
 ```
 
-脚本先在本机 3001 端口预检候选版本的健康接口与 Mock 聊天（HTTP 200、`mode: "mock"`），再原子切换 `/srv/resume/current` 并重启 `resume.service`；切换后健康检查失败会自动恢复旧链接并重启。执行前确保 3001 未被其他服务占用，并保留旧链接目标。发布后仍需通过公网 HTTPS 和 Pages 浏览器实际检查，不能仅凭进程启动认定上线成功。
+正式环境变量文件为 `/etc/resume/resume.env`，开发为 `/etc/resume-development/resume.env`；两套保留 `NODE_ENV=production` 和 `API_ALLOWED_ORIGINS=https://qishaoxuan.github.io`。不要把本地 `.env` 的 localhost 来源复制到服务器。`DEPLOY_ENV=dev` 标识已部署的开发环境，不代表 Node 开发模式。
+
+### 公网检查与失败边界
 
 ```bash
-curl --fail https://101.201.78.159/healthz
 curl --fail https://101.201.78.159/api/health
+curl --fail https://101.201.78.159/dev/api/health
+curl --fail https://qishaoxuan.github.io/deployment-state.json
+curl --fail https://qishaoxuan.github.io/version.json
+curl --fail https://qishaoxuan.github.io/dev/version.json
 ```
 
-两项应返回 `{"status":"ok","service":"resume-api"}`；浏览器连接检查也应显示 `resume-api`。合法聊天请求应返回 HTTP 200 和 `{ mode: "mock", message: { role: "assistant", content: string } }`。固定内容为“这是一条 Mock 测试回复，聊天链路已接通。正式工作经历问答将在后续接入。”；不调用模型、不回显用户内容、不读取 `private/`。
+API 健康结果除 `status: "ok"`、`service: "resume-api"`，还应包含所发布的 40 位 `commit` 和 `environment: "prod"|"dev"`。Pages 整站状态记录 `generation: "<run_id>-<run_attempt>"` 及两环境 commit；各路径 `version.json` 记录本环境最后一次更新的 commit、environment、generation，未更新环境的 generation 可保持旧值。
 
-API 仅信任回环代理传递的客户端地址，配合现有 Nginx 覆盖 `X-Forwarded-For`；聊天限流是单进程内存计数，默认每 IP 每分钟 10 次，健康检查和预检不消耗额度。当前没有模型密钥配置项；后续接入模型时只在服务端环境文件保存密钥，并补充预算控制。API 关闭请求日志，不打印消息正文。
+简历页面与聊天面板已实现。合法 `POST /api/chat`（开发为 `/dev/api/chat`）返回 HTTP 200 和 `{ mode: "mock", message: { role: "assistant", content: string } }`。固定内容为“这是一条 Mock 测试回复，聊天链路已接通。正式工作经历问答将在后续接入。”；不调用模型、不回显用户内容、不读取 `private/`。浏览器还需分别验证两前端路径的聊天请求路由及异常提示。
 
-## 上线前仍需完成
+- API 预检失败时不切换运行版本；切换后的健康或路由验证失败时，激活脚本恢复旧链接并重启。回滚本身失败会明确报错，需云助手检查对应 unit。
+- API 已激活但公网检查或 Pages 发布失败时，不自动回滚 API；旧前端仍保留。前后端接口需保持兼容，再修复并从当前分支 HEAD 重试。
+- Pages 已发布但 generation 验证或 `pages-state` 保存失败时，公网可能已经更新；下次 guard 会拒绝不一致状态。先执行下节状态恢复，禁止直接重跑去覆盖另一环境。
+- Pages 与 API 不是跨平台事务；另一个环境的静态产物来自最近成功保存的状态，不保证其 API 在故障前后自动回滚。
 
-1. 基础链路上线验证后，基于根目录 `readme.md` 实现正式简历展示与聊天界面。
-2. 当前保留 Mock；后续接入真实模型时，再配置服务端密钥、总额度与并发控制。
-3. 验证简历页面、真实 SSE、异常提示及日志隐私；配置必要的备份与监控。
-4. 如后续选用自有域名，再配置域名证书、DNS 及对应接入手续；IP HTTPS 不要求购买域名。
+API 仅信任回环代理传递的客户端地址，Nginx 覆盖 `X-Forwarded-For`；Mock 聊天默认每 IP 每分钟 10 次，健康和预检不计入额度，计数在单进程内存中。API 不记录聊天正文；真实模型以后接入时再增加服务端密钥、总预算与并发控制。
+
+### 恢复已发布 Pages 状态
+
+仅在公网已发布产物与 `pages-state` 不一致时使用。恢复的是当前公网 generation 对应运行上传的 **`github-pages` artifact**，不是 `release-<sha>`、另一分支源码或重新构建产物。先暂停人工触发和分支推送发布，确认没有 release 正在执行；恢复期间若有新发布，下面的 guard 必须失败并重新核对。
+
+在仓库根目录的 Bash 中，使用已登录且有仓库内容写权限的 `gh`，执行（任一命令失败即停止，不继续下一段）：
+
+```bash
+set -euo pipefail
+RECOVERY_ROOT=$(mktemp -d /tmp/resume-pages-recovery.XXXXXX)
+RECOVERY_REPO=QiShaoXuan/qishaoxuan.github.io
+curl --fail --silent --show-error -H 'Cache-Control: no-cache'   "https://qishaoxuan.github.io/deployment-state.json?recovery=$(date +%s)"   > "$RECOVERY_ROOT/published.json"
+RECOVERY_GENERATION=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).generation' "$RECOVERY_ROOT/published.json")
+RECOVERY_RUN_ID=${RECOVERY_GENERATION%-*}
+RECOVERY_ATTEMPT=${RECOVERY_GENERATION##*-}
+gh run view "$RECOVERY_RUN_ID" --attempt "$RECOVERY_ATTEMPT" --repo "$RECOVERY_REPO"
+gh run download "$RECOVERY_RUN_ID" --repo "$RECOVERY_REPO"   --name github-pages --dir "$RECOVERY_ROOT/download"
+mkdir "$RECOVERY_ROOT/site"
+tar -xf "$RECOVERY_ROOT/download/artifact.tar" -C "$RECOVERY_ROOT/site"
+node -e 'const fs=require("node:fs"); const a=JSON.parse(fs.readFileSync(process.argv[1])); const b=JSON.parse(fs.readFileSync(process.argv[2])); if(a.generation!==b.generation || JSON.stringify(a.environments)!==JSON.stringify(b.environments)) process.exit(1)'   "$RECOVERY_ROOT/published.json" "$RECOVERY_ROOT/site/deployment-state.json"
+node scripts/pages-state.mjs guard https://qishaoxuan.github.io "$RECOVERY_ROOT/site"
+```
+
+必须确认 generation 对应的 run 与 attempt 已完成 Pages 发布；完整 workflow 可能因为随后保存状态失败而显示失败。若 artifact 已过期、同名 artifact 不唯一、元数据不一致或无法取得公网状态，停止恢复；不能用重新构建代替。
+
+确认 artifact 与公网一致后，将其原样写入状态分支。下列命令不使用 force push：
+
+```bash
+RECOVERY_STATE_RESULT=0
+git ls-remote --exit-code --heads origin pages-state || RECOVERY_STATE_RESULT=$?
+if [ "$RECOVERY_STATE_RESULT" = 0 ]; then
+  git fetch origin refs/heads/pages-state:refs/remotes/origin/pages-state
+  git worktree add --detach "$RECOVERY_ROOT/state" origin/pages-state
+elif [ "$RECOVERY_STATE_RESULT" = 2 ]; then
+  git worktree add --detach "$RECOVERY_ROOT/state" HEAD
+  git -C "$RECOVERY_ROOT/state" switch --orphan pages-state
+else
+  echo "Cannot query pages-state; stop recovery." >&2
+  exit "$RECOVERY_STATE_RESULT"
+fi
+git -C "$RECOVERY_ROOT/state" rm -r --ignore-unmatch .
+cp -a "$RECOVERY_ROOT/site/." "$RECOVERY_ROOT/state/"
+node scripts/pages-state.mjs guard https://qishaoxuan.github.io "$RECOVERY_ROOT/state"
+git -C "$RECOVERY_ROOT/state" add -A
+git -C "$RECOVERY_ROOT/state" commit -m "Recover published Pages state $RECOVERY_GENERATION"
+git -C "$RECOVERY_ROOT/state" push origin HEAD:refs/heads/pages-state
+```
+
+推送完成后再次运行 `node scripts/pages-state.mjs guard https://qishaoxuan.github.io "$RECOVERY_ROOT/state"`；通过后再恢复正常发布。保留恢复目录用于审查，处理完成后可 `git worktree remove "$RECOVERY_ROOT/state"` 清理 worktree。若恢复推送冲突，重新读取最新公网与远程状态，不能强制覆盖。
+
+## 后续范围
+
+当前保留 Mock，真实模型与 SSE 不属于双环境部署任务。后续按公开范围提炼角色设定、配置服务端密钥与预算，并继续验证日志隐私。自有域名不是当前 IP HTTPS 的前置条件。
 
 参考：[Node 官方下载](https://nodejs.org/en/download)、[Nginx 代理缓冲](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering)。
