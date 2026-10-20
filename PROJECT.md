@@ -43,7 +43,7 @@ npm run dev
 
 ## 双环境自动发布
 
-2026-10-20 已完成阿里云 IAM/OIDC、GitHub Environments 和服务器双环境初始化。正式环境已通过 [Actions 39379174679](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39379174679) 发布，公网健康接口与 Mock 对话已验证。开发环境的 API 已部署，Pages 公网版本仍待确认；校验通过前不会保存新的成功状态。
+2026-10-20 已完成双环境自动部署及公网验证：正式环境首次成功运行为 [Actions 39379174679](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39379174679)（`f7c0f67f83598b4538772ad6e859f97e7478a22f`），开发环境为 [Actions 39380080618](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39380080618)（`a4a61aeda93636c0592ae79da9732e4b5e0e85bb`）。两套简历页面、HTTPS API 与浏览器 Mock 对话均已验证；当前线上版本以公网元数据为准，不以此处历史提交号或分支 HEAD 代替。
 
 | 分支 | GitHub Environment | 前端路径 | API 前缀 | ECS 用户 / 端口 |
 | --- | --- | --- | --- | --- |
@@ -51,6 +51,8 @@ npm run dev
 | `develop` | `development` | `/dev/` | `https://101.201.78.159/dev/api` | `resume-dev` / 3100 |
 
 `.github/workflows/pages.yml` 对两分支 PR 执行 Lint、类型、测试与构建；push 或对应分支手动触发在校验后发布。release 全局串行，先通过 ECS 云助手部署并验证目标 API，再合并当前环境的静态构建与另一环境上次成功产物，统一发布同一个 Pages 站点。
+
+日常开发先推送 `develop`，等待其自动发布与 `/dev/` 浏览器验证通过，再通过 PR 以 merge commit 合入 `master`，触发正式发布。每次发布只更新目标环境，保留另一环境最后一次成功发布的静态产物；确认运行结果和公网 `deployment-state.json`、各路径 `version.json`，不要只看分支代码。
 
 GitHub Environments 已各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN_OIDC_PROVIDER_ARN` 三个变量。`production` 仅允许 `master`，`development` 仅允许 `develop`；两个 RAM 角色的 OIDC 信任分别绑定各环境，云助手执行权限分别限制为 `resume` 与 `resume-dev`。使用临时凭证，不保存长期访问密钥。服务器已由 `root` 通过云助手执行 `deploy/setup-environments.sh` 完成一次性初始化；后续发布不需要 SSH / SCP。OIDC provider 为 `resume-github-actions`，正式与开发角色分别为 `resume-github-production`、`resume-github-development`；配置证据及首轮发布状态见 [部署记录](deploy/README.md#双环境配置记录2026-10-20)。
 
