@@ -136,7 +136,7 @@ test('real archive validator accepts generated knowledge and rejects unsafe path
   const directory = await mkdtemp(path.join(os.tmpdir(), 'resume-upload-test-'));
   const validator = prepareReleaseCommand(target, 'b'.repeat(64), 'c'.repeat(64)).split("<<'PYTHON'\n")[1].split('\nPYTHON')[0];
   try {
-    for (const attack of ['traversal', 'symlink', 'duplicate', 'absolute', 'nested', 'unexpected-dot', 'valid']) {
+    for (const attack of ['traversal', 'symlink', 'duplicate', 'absolute', 'nested', 'unexpected-dot', 'apple-double', 'valid']) {
       const archive = path.join(directory, `${attack}.tgz`);
       const release = path.join(directory, attack);
       const fixture = spawnSync('python3', ['-c', `import io,tarfile,sys
@@ -149,6 +149,7 @@ with tarfile.open(sys.argv[1], 'w:gz') as archive:
     if attack=='symlink': names+=['link.js']
     if attack=='nested': names+=['nested/knowledge.generated.js']
     if attack=='unexpected-dot': names+=['knowledge..generated.js']
+    if attack=='apple-double': names+=['._knowledge.generated.js']
     if attack=='valid': names+=['knowledge.generated.js']
     for name in names:
         item=tarfile.TarInfo(name)
