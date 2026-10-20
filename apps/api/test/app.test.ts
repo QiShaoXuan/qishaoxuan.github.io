@@ -130,3 +130,36 @@ test('configuration rejects invalid ports, quotas and production localhost', () 
   assert.deepEqual(loadConfig({ NODE_ENV: 'development', API_ALLOWED_ORIGINS: 'http://localhost:8080' }).allowedOrigins, ['http://localhost:8080']);
   assert.equal(loadConfig({ API_HOST: '127.0.0.1', HOSTNAME: 'ignored' }).host, '127.0.0.1');
 });
+
+
+test('release health identifies both deployed environments without changing mock or CORS', async (t) => {
+  const commit = '0123456789abcdef0123456789abcdef01234567';
+  for (const environment of ['prod', 'dev'] as const) {
+    const app = await buildApp(loadConfig({ NODE_ENV: 'production', RELEASE_COMMIT: commit, DEPLOY_ENV: environment }));
+    t.after(() => app.close());
+    for (const url of ['/healthz', '/api/health']) {
+      const response = await app.inject({ url, headers: { origin } });
+      assert.equal(response.statusCode, 200);
+      assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api', commit, environment });
+      assert.equal(response.headers['access-control-allow-origin'], origin);
+    }
+    const reply = await app.inject({ method: 'POST', url: '/api/chat', payload, headers: { origin } });
+    assert.deepEqual(reply.json(), mockResponse);
+  }
+});
+
+test('release configuration requires a full lowercase commit and paired environment', () => {
+  const commit = '0123456789abcdef0123456789abcdef01234567';
+  const invalid: NodeJS.ProcessEnv[] = [
+    { RELEASE_COMMIT: commit },
+    { DEPLOY_ENV: 'dev' },
+    { RELEASE_COMMIT: '', DEPLOY_ENV: 'dev' },
+    { RELEASE_COMMIT: commit.slice(0, 7), DEPLOY_ENV: 'dev' },
+    { RELEASE_COMMIT: commit.toUpperCase(), DEPLOY_ENV: 'dev' },
+    { RELEASE_COMMIT: commit, DEPLOY_ENV: '' },
+    { RELEASE_COMMIT: commit, DEPLOY_ENV: 'development' },
+    { RELEASE_COMMIT: commit, DEPLOY_ENV: 'production' },
+  ];
+  for (const env of invalid) assert.throws(() => loadConfig(env), /RELEASE_COMMIT and DEPLOY_ENV/);
+  assert.equal(loadConfig({}).release, undefined);
+});

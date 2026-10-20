@@ -14,7 +14,7 @@
 | `deploy/` | ECS、Nginx、systemd、IP HTTPS 与证书续期配置 |
 | `private/` | 本机原始聊天风格资料，Git 忽略，禁止发布 |
 
-前端部署目标为 `https://qishaoxuan.github.io/`，API 为 `https://101.201.78.159`。前端只发布 `apps/web/dist/`，不发布整个仓库，也不复制原始私人材料、服务端代码或部署配置。
+正式环境为 `https://qishaoxuan.github.io/` 与 `https://101.201.78.159/api`；开发环境为 `https://qishaoxuan.github.io/dev/` 与 `https://101.201.78.159/dev/api`。Pages 只发布两环境 `apps/web/dist/` 合并后的静态文件与公开版本元数据，不发布整个仓库，也不复制原始私人材料、服务端代码或部署配置。
 
 ## 本地开发与检查
 
@@ -41,17 +41,24 @@ npm run dev
 
 页面优先使用系统苹方（PingFang SC），无苹方的设备回退到系统无衬线字体，不打包或请求字体文件。块间距与行距参考 [Kami 示例简历](https://kami.tw93.fun/assets/demos/demo-musk-resume.pdf)：正文行高 1.45，章节上间距 28px（手机 24px）、标题下间距 10px、段落间距 6px、项目上下内边距各 12px。
 
-## 发布基础链路
+## 双环境自动发布
 
-前端构建包含简历页面与聊天面板，聊天使用固定测试回复。只有发布后线上才会更新。
+自动化代码已实现，阿里云 IAM/OIDC 授权、GitHub Environments 配置及首次真实发布尚待完成，当前不能据此认定双环境已上线。
 
-- 前端：`.github/workflows/pages.yml` 在 `master` 推送后检查并构建，只发布 `apps/web/dist/`。仓库 Pages 来源需为 GitHub Actions。
-- API：`npm run package:api` 生成 `.artifacts/api-release.tgz`，包含编译代码、最小运行清单和独立生产锁文件；不包含依赖目录或私人资料。在 ECS 新版本目录执行 `npm ci --omit=dev --ignore-scripts` 后，运行 `deploy/activate-api.sh <绝对发布目录>` 预检并切换版本。
-- 激活脚本在回环地址 3001 预检候选版本的健康接口及 Mock 聊天（HTTP 200、`mode: "mock"`），原子切换 `current` 并重启服务，健康检查失败自动回滚。公网与浏览器验证另行执行，部署结果以实际验证记录为准。
+| 分支 | GitHub Environment | 前端路径 | API 前缀 | ECS 用户 / 端口 |
+| --- | --- | --- | --- | --- |
+| `master` | `production` | `/` | `https://101.201.78.159/api` | `resume` / 3000 |
+| `develop` | `development` | `/dev/` | `https://101.201.78.159/dev/api` | `resume-dev` / 3100 |
 
-完整命令、目录和环境变量要求见 [部署说明](deploy/README.md#发布前后端基础架构)。
+`.github/workflows/pages.yml` 对两分支 PR 执行 Lint、类型、测试与构建；push 或对应分支手动触发在校验后发布。release 全局串行，先通过 ECS 云助手部署并验证目标 API，再合并当前环境的静态构建与另一环境上次成功产物，统一发布同一个 Pages 站点。
 
-服务器操作统一通过 [阿里云 ECS 云助手](https://ecs.console.aliyun.com/cloud-assistant/region/cn-beijing/server) 完成，不再使用 SSH / SCP。应用部署默认选择 `resume` 用户，执行路径为 `/srv/resume`；发布包和激活脚本通过云助手传送并执行，查看命令输出和退出码后继续验证公网接口与页面。
+GitHub Environments 各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN_OIDC_PROVIDER_ARN` 三个变量。`production` 仅允许 `master`，`development` 仅允许 `develop`；两个 RAM 角色的 OIDC 信任分别绑定各环境，云助手执行权限分别限制为 `resume` 与 `resume-dev`。使用临时凭证，不保存长期访问密钥。首次服务器初始化由 `root` 通过云助手执行 `deploy/setup-environments.sh`；后续发布不需要 SSH / SCP。
+
+两套线上 API 都使用 `NODE_ENV=production`，通过 `RELEASE_COMMIT` 和 `DEPLOY_ENV=prod|dev` 区分版本，而非使用 Node 开发模式。API 发布包包含 `version.json` 与 `release.env`，健康响应包含提交及环境。Pages 根目录 `deployment-state.json` 记录整站 generation 和两环境 commit，各前端路径的 `version.json` 记录自身版本。
+
+`pages-state` 分支只保存成功验证后的完整静态站点及元数据。必须先发布 `master` 创建正式站点，再发布 `develop`。发布前若公网状态与该分支不一致，流程失败并等待从已发布 run 的 `github-pages` artifact 恢复；不得重新构建另一分支 HEAD 替代线上版本。后端成功而前端失败时，后端保留新版本，旧前端继续服务；Pages 已发布但状态保存失败时，先恢复状态再重试。
+
+完整初始化、发布、验证与状态恢复命令见 [部署说明](deploy/README.md#双环境自动部署)。
 
 ## 环境变量
 
@@ -59,18 +66,18 @@ npm run dev
 
 | 变量 | 约定 |
 | --- | --- |
-| `VITE_API_BASE_URL` | 开发默认空值走代理；生产默认 `https://101.201.78.159`，自定义生产值仅接受 HTTPS origin。所有 `VITE_` 值都会公开到浏览器，禁止放密钥。 |
+| `VITE_API_BASE_URL` | 开发默认空值走代理；生产默认 `https://101.201.78.159`，自定义生产值仅接受 HTTPS origin 或其 `/dev` 前缀，开发环境构建使用 `https://101.201.78.159/dev`。所有 `VITE_` 值都会公开到浏览器，禁止放密钥。 |
 | `API_HOST` / `API_PORT` | 优先于 `HOSTNAME` / `PORT`，默认 `127.0.0.1:3000`。 |
 | `API_ALLOWED_ORIGINS` | 生产和测试默认仅 `https://qishaoxuan.github.io`；开发另允许 `http://localhost:8080`、`http://127.0.0.1:8080`。显式配置只能使用对应模式的这些来源。 |
 | `API_CHAT_RATE_LIMIT_MAX` / `API_CHAT_RATE_LIMIT_WINDOW_MS` | 默认每 IP 每 60000 毫秒 10 次聊天请求；单进程内存计数，重启清空。 |
 
-生产配置由 `/etc/resume/resume.env` 注入。不要把开发 `.env` 的本机来源复制到生产。模型密钥、SSH 私钥与 TLS 私钥不得提交 Git 或进入静态产物。CORS 仅限制浏览器跨域访问，不替代鉴权和预算控制。
+正式与开发配置分别由 `/etc/resume/resume.env`、`/etc/resume-development/resume.env` 注入；两者的 `NODE_ENV` 都是 `production`。不要把开发 `.env` 的本机来源复制到生产。模型密钥、SSH 私钥与 TLS 私钥不得提交 Git 或进入静态产物。CORS 仅限制浏览器跨域访问，不替代鉴权和预算控制。
 
 ## 接口与资料边界
 
 | 接口 | 当前代码行为 |
 | --- | --- |
-| `GET /healthz`、`GET /api/health` | 200，`{ "status": "ok", "service": "resume-api" }` |
+| `GET /healthz`、`GET /api/health` | 200，`{ "status": "ok", "service": "resume-api" }`；带发布元数据时另含 `commit` 与 `environment` |
 | `POST /api/chat` | 合法请求返回 200，`{ mode: "mock", message: { role: "assistant", content: string } }` |
 
 Mock 固定回复为：“这是一条 Mock 测试回复，聊天链路已接通。正式工作经历问答将在后续接入。”

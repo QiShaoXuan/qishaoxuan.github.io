@@ -1,51 +1,164 @@
-name: Validate and deploy web
+name: Validate and deploy resume
 
 on:
   push:
-    branches: [master]
+    branches: [master, develop]
   pull_request:
-    branches: [master]
+    branches: [master, develop]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
+    outputs:
+      environment: ${{ steps.target.outputs.environment }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           cache: npm
+      - name: Select build target
+        id: target
+        env:
+          TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
+        run: |
+          case "$TARGET_BRANCH" in
+            master)
+              echo 'environment=prod' >> "$GITHUB_OUTPUT"
+              echo 'WEB_BASE=/' >> "$GITHUB_ENV"
+              echo 'VITE_API_BASE_URL=https://101.201.78.159' >> "$GITHUB_ENV"
+              ;;
+            develop)
+              echo 'environment=dev' >> "$GITHUB_OUTPUT"
+              echo 'WEB_BASE=/dev/' >> "$GITHUB_ENV"
+              echo 'VITE_API_BASE_URL=https://101.201.78.159/dev' >> "$GITHUB_ENV"
+              ;;
+            *) echo 'Only master and develop may run this workflow.' >&2; exit 1 ;;
+          esac
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
-      - run: npm run package:api
-      - uses: actions/upload-pages-artifact@v4
+      - name: Build exact release
+        env:
+          DEPLOY_ENV: ${{ steps.target.outputs.environment }}
+        run: |
+          npm run build --workspace @resume/web -- --base "$WEB_BASE"
+          node scripts/package-api.mjs "$DEPLOY_ENV" "$GITHUB_SHA"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: github.event_name != 'pull_request'
         with:
-          path: apps/web/dist
+          name: release-${{ github.sha }}
+          path: |
+            apps/web/dist/
+            .artifacts/api-release.tgz
+          include-hidden-files: true
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
 
-  deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-    needs: build
+  release:
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
+    needs: validate
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
+    # Both branches update one Pages site; keep the whole release serialized.
+    concurrency:
+      group: resume-release
+      cancel-in-progress: false
+      queue: max
     permissions:
+      contents: write
       pages: write
       id-token: write
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: ${{ github.ref_name == 'master' && 'production' || 'development' }}
+      url: ${{ github.ref_name == 'master' && 'https://qishaoxuan.github.io/' || 'https://qishaoxuan.github.io/dev/' }}
+    env:
+      DEPLOY_ENV: ${{ needs.validate.outputs.environment }}
+      ALIYUN_REGION: cn-beijing
+      ECS_INSTANCE_ID: ${{ vars.ECS_INSTANCE_ID }}
+      PAGES_ORIGIN: https://qishaoxuan.github.io
+      GENERATION: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/deploy-pages@v4
-        id: deployment
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Require configured credentials and current branch head
+        env:
+          ROLE_ARN: ${{ vars.ALIYUN_ROLE_ARN }}
+          PROVIDER_ARN: ${{ vars.ALIYUN_OIDC_PROVIDER_ARN }}
+        run: |
+          test -n "$ROLE_ARN" && test -n "$PROVIDER_ARN" && test -n "$ECS_INSTANCE_ID" || {
+            echo 'Configure ECS_INSTANCE_ID, ALIYUN_ROLE_ARN and ALIYUN_OIDC_PROVIDER_ARN in this GitHub environment.' >&2
+            exit 1
+          }
+          current=$(git ls-remote --exit-code origin "refs/heads/$GITHUB_REF_NAME" | cut -f1)
+          test "$current" = "$GITHUB_SHA" || { echo 'Refusing to deploy an outdated commit; run the current branch head.' >&2; exit 1; }
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-${{ github.sha }}
+          path: .artifacts/release
+      - name: Read last successful Pages state
+        run: |
+          set +e
+          git ls-remote --exit-code --heads origin pages-state > .artifacts/state-ref
+          result=$?
+          set -e
+          if [ "$result" = 0 ]; then
+            git fetch --depth=1 origin refs/heads/pages-state:refs/remotes/origin/pages-state
+            git worktree add --detach .artifacts/pages-state origin/pages-state
+          elif [ "$result" = 2 ]; then
+            test "$DEPLOY_ENV" = prod || { echo 'Deploy master first to bootstrap the production site.' >&2; exit 1; }
+            git worktree add --detach .artifacts/pages-state HEAD
+            git -C .artifacts/pages-state switch --orphan pages-state
+          else
+            echo 'Unable to query Pages state; refusing to replace the site.' >&2
+            exit "$result"
+          fi
+          node scripts/pages-state.mjs guard "$PAGES_ORIGIN" .artifacts/pages-state
+      - name: Prepare Pages without changing the other environment
+        run: >-
+          node scripts/pages-state.mjs prepare "$DEPLOY_ENV" "$GITHUB_SHA" "$GENERATION"
+          .artifacts/release/apps/web/dist .artifacts/pages-state .artifacts/pages-site
+      - uses: aliyun/setup-aliyun-cli-action@09a5f86915bb556e27bf050e9a5e339aeb073df5 # v1
+        with:
+          version: '3.5.1'
+      - uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1
+        with:
+          oidc-provider-arn: ${{ vars.ALIYUN_OIDC_PROVIDER_ARN }}
+          role-to-assume: ${{ vars.ALIYUN_ROLE_ARN }}
+          audience: sts.aliyuncs.com
+          role-session-expiration: 1800
+      - name: Deploy backend through Cloud Assistant and verify public routes
+        run: >-
+          node scripts/cloud-assistant.mjs deploy "$DEPLOY_ENV" "$GITHUB_SHA"
+          .artifacts/release/.artifacts/api-release.tgz deploy/activate-api.sh
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: .artifacts/pages-site
+      - name: Publish both frontend paths
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        id: pages
+      - name: Confirm public Pages generation
+        run: node scripts/pages-state.mjs verify "$PAGES_ORIGIN" "$GENERATION"
+      - name: Save successful Pages state
+        run: |
+          git -C .artifacts/pages-state rm -r --ignore-unmatch .
+          cp -a .artifacts/pages-site/. .artifacts/pages-state/
+          git -C .artifacts/pages-state config user.name 'github-actions[bot]'
+          git -C .artifacts/pages-state config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C .artifacts/pages-state add -A
+          git -C .artifacts/pages-state commit -m "Publish $DEPLOY_ENV $GITHUB_SHA ($GENERATION)"
+          for attempt in 1 2 3; do
+            if git -C .artifacts/pages-state push origin HEAD:refs/heads/pages-state; then exit 0; fi
+            sleep 3
+          done
+          echo 'Pages is published but state could not be saved. Reconcile state before another release.' >&2
+          exit 1

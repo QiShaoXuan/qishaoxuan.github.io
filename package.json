@@ -11,7 +11,8 @@
     "build:api": "npm run build --workspace @resume/api",
     "typecheck": "npm run typecheck --workspaces",
     "lint": "eslint apps scripts eslint.config.mjs",
-    "test": "npm run test --workspaces",
+    "test": "npm run test --workspaces && npm run test:deploy",
+    "test:deploy": "node --test scripts/test-*.mjs",
     "start:api": "npm run start --workspace @resume/api",
     "package:api": "node scripts/package-api.mjs"
   },

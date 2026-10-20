@@ -10,6 +10,7 @@ User=resume
 Group=resume
 WorkingDirectory=/srv/resume/current
 EnvironmentFile=/etc/resume/resume.env
+EnvironmentFile=-/srv/resume/current/release.env
 ExecStart=/opt/node/bin/node /srv/resume/current/server.js
 Restart=on-failure
 RestartSec=5

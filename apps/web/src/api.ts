@@ -1,3 +1,5 @@
+import { resolveApiUrl } from './api-url';
+
 type Health = { status: 'ok'; service: string };
 
 type MockReply = { mode: 'mock'; message: { role: 'assistant'; content: string } };
@@ -5,16 +7,7 @@ type MockReply = { mode: 'mock'; message: { role: 'assistant'; content: string }
 function apiUrl(path: '/api/health' | '/api/chat'): string {
   const configured = import.meta.env.VITE_API_BASE_URL?.trim();
   const base = configured || (import.meta.env.PROD ? 'https://101.201.78.159' : '');
-  if (!base) return path;
-
-  const url = new URL(base);
-  if (
-    (url.protocol !== 'https:' && !(import.meta.env.DEV && url.protocol === 'http:')) ||
-    url.username || url.password || url.pathname !== '/' || url.search || url.hash
-  ) {
-    throw new Error('API 地址配置无效，请检查公开的服务地址。');
-  }
-  return new URL(path, url.origin).href;
+  return resolveApiUrl(path, base, import.meta.env.DEV);
 }
 
 export async function checkHealth(signal: AbortSignal): Promise<Health> {
