@@ -77,8 +77,25 @@ curl --noproxy '*' --silent --show-error --fail --retry 10 --retry-connrefused -
 install -o root -g root -m 644 "$SCRIPT_DIR/resume.ip-https.nginx" "$SITE"
 nginx -t
 systemctl reload nginx.service
+# nginx reload returns before its replacement workers necessarily accept requests.
+# Retry every unsuccessful response, including the old worker's HTTP 404 (curl's
+# default --retry does not retry 404). A persistent routing error still rolls back.
+wait_proxy_health() {
+  local route=$1 attempt
+  for ((attempt=1; attempt<=10; attempt++)); do
+    if curl --noproxy '*' --resolve 101.201.78.159:443:127.0.0.1 \
+      --silent --show-error --fail --connect-timeout 2 --max-time 3 \
+      "https://101.201.78.159$route" |
+      python3 -c 'import json,sys; data=json.load(sys.stdin); sys.exit(0 if data.get("status")=="ok" else 1)' 2>/dev/null; then
+      return 0
+    fi
+    if [[ $attempt -lt 10 ]]; then sleep 1; fi
+  done
+  echo "Nginx health check failed after 10 attempts: $route" >&2
+  return 1
+}
 for route in /healthz /dev/healthz; do
-  curl --noproxy '*' --resolve 101.201.78.159:443:127.0.0.1 --silent --show-error --fail --retry 5 --retry-delay 1 --max-time 3 "https://101.201.78.159$route" >/dev/null
+  wait_proxy_health "$route"
 done
 success=true
 printf 'Dual environments ready. Configuration backup: %s\n' "$BACKUP_DIR"

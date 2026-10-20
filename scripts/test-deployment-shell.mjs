@@ -82,3 +82,42 @@ test('development proxy and service preserve environment isolation', async () =>
   assert.match(unit, /MemoryHigh=192M\nMemoryMax=256M/);
   assert.match(unit, /EnvironmentFile=-\/srv\/resume-development\/current\/release.env/);
 });
+
+async function proxyRetryFixture(failures) {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'resume-nginx-retry-'));
+  try {
+    const setup = await readFile(new URL('deploy/setup-environments.sh', root), 'utf8');
+    const helper = setup.match(/wait_proxy_health\(\) \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(helper, 'setup must use bounded post-reload HTTP health verification');
+    const counter = path.join(temporary, 'attempts');
+    // HTTP 404 is curl exit 22; emulate old workers before healthy new workers.
+    await writeFile(path.join(temporary, 'curl'), `#!/bin/bash
+count=0
+[[ ! -f "$RETRY_COUNTER" ]] || read -r count < "$RETRY_COUNTER"
+count=$((count+1))
+echo "$count" > "$RETRY_COUNTER"
+if [[ $count -le $RETRY_FAILURES ]]; then exit 22; fi
+printf '%s' '{"status":"ok","stage":"deployment-preparation"}'
+`, { mode: 0o755 });
+    await writeFile(path.join(temporary, 'sleep'), '#!/bin/bash\nexit 0\n', { mode: 0o755 });
+    const result = spawnSync('bash', ['-c', `set -Eeu -o pipefail\n${helper}\nwait_proxy_health /dev/healthz`], {
+      env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, RETRY_COUNTER: counter, RETRY_FAILURES: String(failures) },
+      encoding: 'utf8',
+    });
+    return { result, attempts: Number(await readFile(counter, 'utf8')) };
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+test('post-reload health tolerates old-worker 404 until new route is ready', async () => {
+  const { result, attempts } = await proxyRetryFixture(2);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(attempts, 3);
+});
+test('persistent post-reload 404 fails within bounded attempts for rollback', async () => {
+  const { result, attempts } = await proxyRetryFixture(20);
+  assert.equal(result.status, 1);
+  assert.equal(attempts, 10);
+  assert.match(result.stderr, /Nginx health check failed after 10 attempts: \/dev\/healthz/);
+});
