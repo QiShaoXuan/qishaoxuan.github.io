@@ -113,7 +113,7 @@ systemctl reload nginx.service
 
 ## 双环境自动部署
 
-双环境自动化代码及外部 IAM/OIDC、GitHub Environments、服务器初始化已完成配置。首次正式发布在通过校验后，云助手调用失败，尚在修复；正式与开发首次发布及公网验证仍待完成。本文此前 2026-10-19 的记录属于原环境准备阶段，不代表新流程已发布成功。
+双环境自动化代码及外部 IAM/OIDC、GitHub Environments、服务器初始化已完成配置。正式环境已完成发布及公网验证；开发 API 已部署，开发 Pages 公网版本仍待确认。本文此前 2026-10-19 的记录属于原环境准备阶段。
 
 | 项目 | 正式环境 | 开发环境 |
 | --- | --- | --- |
@@ -137,7 +137,7 @@ systemctl reload nginx.service
 | GitHub Environments | `production`（ID `24782423084`）仅 `master`；`development`（ID `24782598685`）仅 `develop`。两者均已配置三项部署变量 |
 | 服务器初始化 | 14:06 完成，云助手调用 `t-bj070l0pizz7h8g` 返回退出码 0；备份 `/var/backups/resume-environments/20261020T060624-21853/` |
 
-首次初始化遇到 Nginx 重载后短暂 404，已通过有界健康重试修复（提交 `8920e24`），再执行成功。PR #1 已合入 `master`（`57e65b0`）。首次正式 Actions [运行 39378693783](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39378693783) 通过 validate，release 的云助手 step 0 因 CLI 退出码 3 失败；该运行不构成发布成功证据，正在修复。正式与开发两环境均需等待后续成功运行和公网验证后记录上线结果。
+首次初始化遇到 Nginx 重载后短暂 404，已通过有界健康重试修复（提交 `8920e24`），再执行成功。PR #1 已合入 `master`（`57e65b0`）。首次正式 [运行 39378693783](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39378693783) 的云助手 CLI 因缺少全局 `--region` 退出 3；修复后 [运行 39379174679](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39379174679) 完整成功，正式 API 和 Pages 均为 `f7c0f67`，浏览器 Mock 对话通过。开发 [运行 39379416372](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39379416372) 已发布 API，但 Pages 公网 generation 在两分钟内未更新，因此未保存状态；后续校验窗口延长为十分钟，并输出组合包的两环境公开版本清单。
 
 ### 一次性初始化
 

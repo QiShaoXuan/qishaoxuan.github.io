@@ -43,7 +43,7 @@ npm run dev
 
 ## 双环境自动发布
 
-2026-10-20 本轮已完成阿里云 IAM/OIDC、GitHub Environments 配置，服务器双环境初始化于北京时间 14:06 完成。首次正式 Actions 运行已通过校验，但云助手发布步骤失败，正在修复；正式与开发环境的首次发布及公网验证仍待完成，不能据此认定双环境已上线。
+2026-10-20 已完成阿里云 IAM/OIDC、GitHub Environments 和服务器双环境初始化。正式环境已通过 [Actions 39379174679](https://github.com/QiShaoXuan/qishaoxuan.github.io/actions/runs/39379174679) 发布，公网健康接口与 Mock 对话已验证。开发环境的 API 已部署，Pages 公网版本仍待确认；校验通过前不会保存新的成功状态。
 
 | 分支 | GitHub Environment | 前端路径 | API 前缀 | ECS 用户 / 端口 |
 | --- | --- | --- | --- | --- |
