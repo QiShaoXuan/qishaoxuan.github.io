@@ -86,22 +86,21 @@ Certbot 客户端定期维护更新，更新后再做续期演练：
 
 应用 stdout/stderr 交给 journald。Nginx access log 不记录 IP、查询参数、请求体和 User-Agent；应用实现也须避免打印聊天正文、密钥及用户资料。Nginx error log 为 warn，故障时仍可能包含请求 URI、来源等诊断信息，不应把聊天内容放入 URL。
 
-## 连接与检查
+## 云助手管理与检查
 
-本机专用私钥：`/Users/bytedance/.ssh/aliyun_resume_beijing`，不能上传或提交仓库。公钥已授权 root 和 resume。主机公钥保存在本机 `/Users/bytedance/.ssh/known_hosts_aliyun_resume`。
+后续服务器管理、部署与排障统一使用云助手，不再使用 SSH / SCP。入口：[ECS 云助手，北京地域](https://ecs.console.aliyun.com/cloud-assistant/region/cn-beijing/server)。
+
+1. 选择公网 IP 为 `101.201.78.159` 的实例，确认云助手状态正常。
+2. 创建 Shell 命令，应用操作选择执行用户 `resume`、执行路径 `/srv/resume`；发布任务超时可设为 300 秒。
+3. 执行后查看输出和退出码，并核验接口或服务状态。日常检查命令如下：
 
 ```bash
-ssh -F /dev/null -i ~/.ssh/aliyun_resume_beijing \
-  -o IdentitiesOnly=yes \
-  -o UserKnownHostsFile=~/.ssh/known_hosts_aliyun_resume \
-  resume@101.201.78.159
-
 systemctl status resume.service --no-pager
 curl --fail http://127.0.0.1:3000/healthz
 curl --fail --resolve 101.201.78.159:443:127.0.0.1 https://101.201.78.159/healthz
 ```
 
-root 可查看完整日志及管理代理：
+需要查看受限日志或管理 Nginx 等系统级操作时，在对应任务已授权的范围内选择 `root` 用户执行：
 
 ```bash
 journalctl -u resume.service -n 100 --no-pager
@@ -110,7 +109,7 @@ nginx -t
 systemctl reload nginx.service
 ```
 
-安全组只允许当前管理出口 `211.95.64.140/32` 访问 22，80/443 对公网开放，保留 ICMP。出口 IP 改变后须在阿里云控制台更新 SSH 白名单，禁止为了方便直接长期开放全部端口。
+既有安全组配置记录：22 端口来源为 `211.95.64.140/32`，80/443 对公网开放，保留 ICMP。后续运维使用云助手，不再随本机出口 IP 变化调整 SSH 白名单。
 
 ## 发布前后端基础架构
 
@@ -133,11 +132,13 @@ npm run package:api
 
 脚本先编译 API，再生成 `.artifacts/api-release.tgz`。压缩包包含平铺后的 `apps/api/dist/*.js`、最小运行 `package.json` 和基于 `deploy/api-package-lock.json` 的独立生产锁文件；不包含 `node_modules/`、开发工具、私人资料或密钥。仓库根锁文件包含 workspaces，不能替代这个独立生产锁。
 
-以 `resume` 将压缩包上传并解压到一个新的 `/srv/resume/releases/<版本>/` 目录，在该目录运行：
+通过云助手传送发布包与 `deploy/activate-api.sh`，以 `resume` 用户执行发布命令：先核验传送文件的 SHA256，再将发布包解压到新的 `/srv/resume/releases/<版本>/` 目录，在该目录运行：
 
 ```bash
 npm ci --omit=dev --ignore-scripts
 ```
+
+也可在本地将发布包和激活脚本压缩、Base64 编码，生成可审查的 Shell 命令后由云助手执行。命令需先确认 `id -un` 为 `resume`，并保留文件校验；内容超出控制台限制时分批传送文件。原始私人资料与密钥不属于发布内容。
 
 运行依赖在服务器依据锁文件安装，不在小内存 ECS 上执行 TypeScript 编译。发布目录布局为：
 

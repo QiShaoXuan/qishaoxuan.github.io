@@ -46,7 +46,7 @@ test('CORS permits the exact Pages origin and rejects foreign or malformed reque
   const response = await app.inject({ method: 'OPTIONS', url: '/api/chat', headers });
   assert.equal(response.statusCode, 204);
   assert.equal(response.headers['access-control-allow-origin'], origin);
-  for (const foreignOrigin of ['https://qishaoxuan.github.io.attacker.test', 'http://localhost:5173', 'null']) {
+  for (const foreignOrigin of ['https://qishaoxuan.github.io.attacker.test', 'http://localhost:8080', 'null']) {
     const rejected = await app.inject({ method: 'OPTIONS', url: '/api/chat', headers: { ...headers, origin: foreignOrigin } });
     assert.equal(rejected.statusCode, 403);
     assert.equal(rejected.headers['access-control-allow-origin'], undefined);
@@ -74,7 +74,7 @@ test('chat returns a fixed, explicitly marked mock without echoing user content'
 test('development defaults allow local frontend preflight and chat through the Vite proxy', async (t) => {
   const app = await buildApp(loadConfig({ NODE_ENV: 'development' }));
   t.after(() => app.close());
-  for (const localOrigin of ['http://localhost:5173', 'http://127.0.0.1:5173']) {
+  for (const localOrigin of ['http://localhost:8080', 'http://127.0.0.1:8080']) {
     const preflight = await app.inject({ method: 'OPTIONS', url: '/api/chat', headers: { origin: localOrigin, 'access-control-request-method': 'POST' } });
     assert.equal(preflight.statusCode, 204);
     assert.equal(preflight.headers['access-control-allow-origin'], localOrigin);
@@ -125,8 +125,8 @@ test('rate limits only chat: health and preflight neither consume nor inherit ch
 test('configuration rejects invalid ports, quotas and production localhost', () => {
   for (const port of ['0', '65536', '3000oops', '']) assert.throws(() => loadConfig({ API_PORT: port }));
   assert.throws(() => loadConfig({ API_CHAT_RATE_LIMIT_MAX: 'NaN' }));
-  assert.throws(() => loadConfig({ NODE_ENV: 'production', API_ALLOWED_ORIGINS: 'http://localhost:5173' }));
+  assert.throws(() => loadConfig({ NODE_ENV: 'production', API_ALLOWED_ORIGINS: 'http://localhost:8080' }));
   assert.throws(() => loadConfig({ API_ALLOWED_ORIGINS: '*' }));
-  assert.deepEqual(loadConfig({ NODE_ENV: 'development', API_ALLOWED_ORIGINS: 'http://localhost:5173' }).allowedOrigins, ['http://localhost:5173']);
+  assert.deepEqual(loadConfig({ NODE_ENV: 'development', API_ALLOWED_ORIGINS: 'http://localhost:8080' }).allowedOrigins, ['http://localhost:8080']);
   assert.equal(loadConfig({ API_HOST: '127.0.0.1', HOSTNAME: 'ignored' }).host, '127.0.0.1');
 });
