@@ -10,11 +10,11 @@ function Shimmer({ children }: { children: ReactNode }) {
   return <span className="beautiful-shimmer">{children}</span>;
 }
 
-export function ThinkingState() {
+export function ThinkingState({ generating = false }: { generating?: boolean }) {
   return (
     <div className="beautiful-thinking" role="status">
       <SparklesIcon aria-hidden="true" />
-      <Shimmer>正在准备演示回复</Shimmer>
+      <Shimmer>{generating ? '正在生成回复' : '等待回复'}</Shimmer>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile, symlink } from 'node:fs/promises';
 import os from 'node:os';
+import { createServer } from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -120,4 +121,99 @@ test('persistent post-reload 404 fails within bounded attempts for rollback', as
   assert.equal(result.status, 1);
   assert.equal(attempts, 10);
   assert.match(result.stderr, /Nginx health check failed after 10 attempts: \/dev\/healthz/);
+});
+
+async function routeProbeFixture(status = '400', code = 'INVALID_REQUEST') {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'resume-route-probe-'));
+  try {
+    const helper = activation.match(/check_routes\(\) \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(helper);
+    await writeFile(path.join(temporary, 'curl'), `#!/bin/bash
+output=''; headers=''; method='POST'; body=''
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o) output=$2; shift 2 ;;
+    -D) headers=$2; shift 2 ;;
+    -X) method=$2; shift 2 ;;
+    --data) body=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [[ $method == OPTIONS ]]; then
+  printf 'access-control-allow-origin: https://qishaoxuan.github.io\\r\\n' > "$headers"
+  printf '204'
+else
+  [[ $body == '{"messages":[]}' ]] || { echo 'Billable request attempted' >&2; exit 99; }
+  printf '{"code":"%s"}' "$PROBE_CODE" > "$output"
+  printf '%s' "$PROBE_STATUS"
+fi
+`, { mode: 0o755 });
+    return spawnSync('bash', ['-c', `set -Eeuo pipefail\nhealth() { return 0; }\n${helper}\ncheck_routes 3001`], {
+      env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, temporary, PROBE_STATUS: status, PROBE_CODE: code }, encoding: 'utf8',
+    });
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+test('loopback route probe sends only invalid input and accepts INVALID_REQUEST 400', async () => {
+  const result = await routeProbeFixture();
+  assert.equal(result.status, 0, result.stderr);
+});
+test('loopback route probe rejects successful chat and wrong validation code', async () => {
+  const success = await routeProbeFixture('200');
+  assert.notEqual(success.status, 0);
+  assert.match(success.stderr, /Expected invalid chat request 400/);
+  assert.notEqual((await routeProbeFixture('400', 'OTHER_ERROR')).status, 0);
+});
+
+
+test('candidate preflight accepts structured startup logs and verifies real loopback routes', async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'resume-preflight-startup-'));
+  const reservation = createServer();
+  await new Promise((resolve) => reservation.listen(0, '127.0.0.1', resolve));
+  const port = reservation.address().port;
+  await new Promise((resolve) => reservation.close(resolve));
+  try {
+    await writeFile(path.join(temporary, 'server.env'), '');
+    await writeFile(path.join(temporary, 'server.js'), `
+const http = require('node:http');
+const server = http.createServer((request, response) => {
+  response.setHeader('Access-Control-Allow-Origin', 'https://qishaoxuan.github.io');
+  if (request.url === '/api/health' || request.url === '/healthz') {
+    response.end(JSON.stringify({ status: 'ok', service: 'resume-api', commit: process.env.RELEASE_COMMIT, environment: process.env.DEPLOY_ENV }));
+  } else if (request.url === '/api/chat' && request.method === 'OPTIONS') {
+    response.writeHead(204); response.end();
+  } else if (request.url === '/api/chat' && request.method === 'POST') {
+    let body = ''; request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      if (body !== '{"messages":[]}') { response.writeHead(500); response.end('billable input attempted'); return; }
+      response.writeHead(400); response.end(JSON.stringify({ code: 'INVALID_REQUEST' }));
+    });
+  } else { response.writeHead(404); response.end(); }
+});
+server.listen(Number(process.env.API_PORT), process.env.API_HOST, () => {
+  console.log(JSON.stringify({ level: 30, time: Date.now(), env: process.env.DEPLOY_ENV, commit: process.env.RELEASE_COMMIT, msg: 'startup' }));
+});
+process.on('SIGTERM', () => server.close());
+`);
+    const helpers = activation.slice(activation.indexOf('stop_preflight() {'), activation.indexOf('cleanup() {'));
+    const preflight = activation.slice(activation.indexOf('(\n  cd "$release"'), activation.indexOf("printf 'Release:"))
+      .replace('/opt/node/bin/node', '"$node_binary"');
+    assert.ok(preflight.includes('wait_health "$check_port"'));
+    assert.ok(preflight.includes('check_routes "$check_port"'));
+    const result = spawnSync('bash', ['-c', `set -Eeuo pipefail\npreflight_pid=''\ntrap stop_preflight EXIT\n${helpers}\n${preflight}`], {
+      env: { ...process.env, temporary, release: temporary, env_file: path.join(temporary, 'server.env'), expected_commit: commit,
+        environment: 'prod', check_port: String(port), heap: '128', node_binary: process.execPath },
+      encoding: 'utf8', timeout: 15000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const log = await readFile(path.join(temporary, 'preflight.log'), 'utf8');
+    const startup = JSON.parse(log.trim());
+    assert.equal(startup.msg, 'startup');
+    assert.equal(startup.commit, commit);
+    assert.doesNotMatch(log, /Resume API listening/);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
 });

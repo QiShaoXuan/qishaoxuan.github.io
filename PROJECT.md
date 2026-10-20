@@ -25,7 +25,7 @@ npm ci
 npm run dev
 ```
 
-打开 `http://127.0.0.1:8080` 查看简历，点击右下角聊天入口测试 Mock 收发。前端经 Vite 代理连接本机 API，API 默认监听 `127.0.0.1:3000`。Ctrl+C 同时停止两项服务，启动器面向 macOS / Linux。
+打开 `http://127.0.0.1:8080` 查看简历，点击右下角聊天入口测试聊天收发（默认 Mock）。前端经 Vite 代理连接本机 API，API 默认监听 `127.0.0.1:3000`。Ctrl+C 同时停止两项服务，启动器面向 macOS / Linux。
 
 | 命令 | 用途 |
 | --- | --- |
@@ -35,9 +35,9 @@ npm run dev
 | `npm run build:web` / `npm run build:api` | 单独构建前端 / API |
 | `npm run start:api` | 运行已编译 API |
 
-当前前端基于 Kami resume 模板展示完整简历，直接读取根目录 `readme.md`。聊天默认收起于右下角，桌面支持拖动浮窗、边缘吸附、左右全高停靠并给正文让出空间；手机使用全屏面板。窗口关闭后保留本页会话，刷新后清空。
+当前前端基于 Kami resume 模板展示完整简历，直接读取根目录 `readme.md`。聊天默认收起于右下角，桌面支持拖动浮窗、边缘吸附、左右全高停靠并给正文让出空间；手机使用全屏面板。聊天记录保存在浏览器 localStorage，保留 7 天并按环境命名空间区分；同源的正式与开发路径并非安全隔离。支持清空对话和取消流式生成；取消或异常中断的不完整回复不作为后续模型历史。
 
-图标使用 Heroicons，聊天输入与等待状态改编自 Beautiful UI，状态由实际 Mock 请求驱动。Mock 不调用模型、不读取 `private/`；真实知识问答与 SSE 尚未接入。本地检查通过不代表线上已更新。视觉规则和上游版本见 [DESIGN.md](DESIGN.md)，开源许可随构建发布在 `/THIRD_PARTY_NOTICES.txt`。
+图标使用 Heroicons，聊天输入与等待状态改编自 Beautiful UI。默认 `API_CHAT_MODE=mock` 不调用模型；`deepseek` 模式启用服务端 DeepSeek 流式问答。本地已完成真实模型与浏览器链路验证；线上是否调用真实模型取决于各环境服务端配置，不能以代码合并或部署成功代替模型验证。真实模型付费 smoke 的结果单独记录，不以 Mock 或部署探针通过代替。视觉规则和上游版本见 [DESIGN.md](DESIGN.md)，开源许可随构建发布在 `/THIRD_PARTY_NOTICES.txt`。
 
 页面优先使用系统苹方（PingFang SC），无苹方的设备回退到系统无衬线字体，不打包或请求字体文件。块间距与行距参考 [Kami 示例简历](https://kami.tw93.fun/assets/demos/demo-musk-resume.pdf)：正文行高 1.45，章节上间距 28px（手机 24px）、标题下间距 10px、段落间距 6px、项目上下内边距各 12px。
 
@@ -64,7 +64,7 @@ GitHub Environments 已各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN
 
 ## 环境变量
 
-无需创建 `.env` 即可本地启动。需要覆盖时，分别复制 `apps/web/.env.example`、`apps/api/.env.example` 为同目录 `.env`，修改后重启服务。Vite 加载前端配置，Node 启动脚本加载后端配置。
+默认 Mock 无需创建 `.env` 即可本地启动。真实模型请在本机 `apps/api/.env` 配置 `API_CHAT_MODE=deepseek` 和 `DEEPSEEK_API_KEY`，不要在聊天消息、前端变量或 Git 中填写密钥。需要覆盖时，分别复制 `apps/web/.env.example`、`apps/api/.env.example` 为同目录 `.env`，修改后重启服务。Vite 加载前端配置，Node 启动脚本加载后端配置。
 
 | 变量 | 约定 |
 | --- | --- |
@@ -72,6 +72,12 @@ GitHub Environments 已各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN
 | `API_HOST` / `API_PORT` | 优先于 `HOSTNAME` / `PORT`，默认 `127.0.0.1:3000`。 |
 | `API_ALLOWED_ORIGINS` | 生产和测试默认仅 `https://qishaoxuan.github.io`；开发另允许 `http://localhost:8080`、`http://127.0.0.1:8080`。显式配置只能使用对应模式的这些来源。 |
 | `API_CHAT_RATE_LIMIT_MAX` / `API_CHAT_RATE_LIMIT_WINDOW_MS` | 默认每 IP 每 60000 毫秒 10 次聊天请求；单进程内存计数，重启清空。 |
+| `API_CHAT_MODE` | 默认 `mock`；设为 `deepseek` 才调用模型，缺少服务端密钥时拒绝启动。 |
+| `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` | 密钥仅保存在 API 环境中；模型默认 `deepseek-flash`。 |
+| `API_CHAT_TIMEOUT_MS` | 单次上游请求超时，默认 60000 毫秒。 |
+| `API_CHAT_MAX_TOKENS` | 输出 token 上限，默认 1024，最大 2048。 |
+| `API_CHAT_MAX_CONCURRENCY` | 进程内并发上限，默认 2。 |
+| `API_CHAT_DAILY_LIMIT` | 进程内每日模型请求上限，默认 100，按 UTC 日期重置；重启清空，不是持久化账单或硬预算。 |
 
 正式与开发配置分别由 `/etc/resume/resume.env`、`/etc/resume-development/resume.env` 注入；两者的 `NODE_ENV` 都是 `production`。不要把开发 `.env` 的本机来源复制到生产。模型密钥、SSH 私钥与 TLS 私钥不得提交 Git 或进入静态产物。CORS 仅限制浏览器跨域访问，不替代鉴权和预算控制。
 
@@ -80,10 +86,19 @@ GitHub Environments 已各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN
 | 接口 | 当前代码行为 |
 | --- | --- |
 | `GET /healthz`、`GET /api/health` | 200，`{ "status": "ok", "service": "resume-api" }`；带发布元数据时另含 `commit` 与 `environment` |
-| `POST /api/chat` | 合法请求返回 200，`{ mode: "mock", message: { role: "assistant", content: string } }` |
+| `POST /api/chat` | 默认 Mock，`deepseek` 模式调用模型；`Accept: text/event-stream` 返回 SSE（meta / delta / done / error），否则返回兼容 JSON。浏览器仅将正常完成的回复作为后续历史。无效输入返回 400 与 `code: "INVALID_REQUEST"`。 |
 
-Mock 固定回复为：“这是一条 Mock 测试回复，聊天链路已接通。正式工作经历问答将在后续接入。”
+聊天请求只接收 `messages`：1–20 条 `user` / `assistant` 消息，每条 1–4000 字符且不可全为空白；拒绝 `system`、自选模型与额外字段。请求体上限 100 KiB。部署探针仅发送 `{"messages":[]}` 验证路由与校验，不提交有效聊天、不调用模型；健康和 CORS 预检也不调用模型。
 
-聊天请求只接收 `messages`：1–20 条 `user` / `assistant` 消息，每条 1–4000 字符且不可全为空白；拒绝 `system`、自选模型与额外字段。请求体上限 100 KiB。健康检查和预检不消耗聊天额度；API 不记录聊天正文或请求日志。接入真实模型前仍需总预算、并发控制和异常处理。
+根目录 [readme.md](readme.md) 是唯一简历事实来源，构建时生成 API 可读取的公开知识模块；API 发布包仍使用顶层 JS 文件，不上传根 Markdown 或 `private/`。原始私密聊天风格资料仅留本机；只将经提炼的公开表达风格作为服务端规则，与公开简历知识分开维护。公开规则不能把未证实经历扩写为事实。
 
-`private/` 的原始聊天风格报告只供本地整理，不提交、不上传、不打包。后续先提炼允许公开的语气设定与工作经历知识，再接入服务端；简历事实始终以 [readme.md](readme.md) 为准。
+服务端输出结构化运行日志，systemd 收集到 journal，记录请求状态、耗时、prompt / knowledge 版本等排查信息；不记录聊天正文、完整 prompt、上游响应正文或密钥。日志用于本地定位，未接入外部日志平台。进程内限流、并发和每日计数不能替代持久化账单预算。
+
+真实模型 smoke 属于独立、显式的本机付费功能检查：配置好本机 API Key 后，通过本机聊天面板或下面命令检查 SSE；自动构建与部署不会执行它。
+
+```bash
+# 先启动本机 deepseek 模式 API；此命令会发起一次真实模型请求并可能计费。
+curl --no-buffer --fail-with-body http://127.0.0.1:3000/api/chat \
+  -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
+  --data '{"messages":[{"role":"user","content":"请简要介绍公开简历中的工作经历"}]}'
+```

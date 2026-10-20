@@ -19,24 +19,19 @@ test('both health routes work without Origin', async (t) => {
   for (const url of ['/healthz', '/api/health']) {
     const response = await app.inject({ url });
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api' });
+    assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api', ...(url === '/api/health' ? { chat: { mode: 'mock', configured: true } } : {}) });
   }
 });
 
-test('unexpected errors retain diagnostics without logging messages or exposing details', async (t) => {
-  const diagnostic = t.mock.method(console, 'error', () => {});
+test('unexpected errors hide diagnostics and return a server-generated request id', async (t) => {
   const app = await buildApp(loadConfig({ NODE_ENV: 'test' }));
   t.after(() => app.close());
-  app.get('/test-failure', async () => {
-    throw Object.assign(new Error('private upstream response'), { code: 'TEST_FAILURE' });
-  });
+  app.get('/test-failure', async () => { throw new Error('private upstream response'); });
   const response = await app.inject({ url: '/test-failure' });
   assert.equal(response.statusCode, 500);
-  assert.deepEqual(response.json(), { code: 'INTERNAL_ERROR', message: '请求无法处理。' });
-  assert.equal(diagnostic.mock.callCount(), 1);
-  assert.deepEqual(diagnostic.mock.calls[0]?.arguments, [
-    'Unhandled API error', { name: 'Error', code: 'TEST_FAILURE' },
-  ]);
+  assert.equal(response.json().code, 'INTERNAL_ERROR');
+  assert.equal(response.json().requestId, response.headers['x-request-id']);
+  assert.ok(!response.body.includes('private upstream'));
 });
 
 test('CORS permits the exact Pages origin and rejects foreign or malformed requests', async (t) => {
@@ -62,13 +57,13 @@ test('chat returns a fixed, explicitly marked mock without echoing user content'
   t.after(() => app.close());
   const response = await app.inject({ method: 'POST', url: '/api/chat', headers: { origin }, payload });
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), mockResponse);
+  assert.deepEqual({ mode: response.json().mode, message: response.json().message }, mockResponse);
   assert.equal(response.headers['access-control-allow-origin'], origin);
   const differentInput = await app.inject({
     method: 'POST', url: '/api/chat', payload: { messages: [{ role: 'user', content: '此处是用户输入原文，不应出现在回复中' }] },
   });
   assert.equal(differentInput.statusCode, 200);
-  assert.deepEqual(differentInput.json(), mockResponse);
+  assert.deepEqual({ mode: differentInput.json().mode, message: differentInput.json().message }, mockResponse);
 });
 
 test('development defaults allow local frontend preflight and chat through the Vite proxy', async (t) => {
@@ -80,7 +75,7 @@ test('development defaults allow local frontend preflight and chat through the V
     assert.equal(preflight.headers['access-control-allow-origin'], localOrigin);
     const response = await app.inject({ method: 'POST', url: '/api/chat', headers: { origin: localOrigin }, payload });
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json(), mockResponse);
+    assert.deepEqual({ mode: response.json().mode, message: response.json().message }, mockResponse);
     assert.equal(response.headers['access-control-allow-origin'], localOrigin);
   }
 });
@@ -114,7 +109,7 @@ test('rate limits only chat: health and preflight neither consume nor inherit ch
   assert.equal((await app.inject({ url: '/api/health' })).statusCode, 200);
   const first = await app.inject({ method: 'POST', url: '/api/chat', payload });
   assert.equal(first.statusCode, 200);
-  assert.deepEqual(first.json(), mockResponse);
+  assert.deepEqual({ mode: first.json().mode, message: first.json().message }, mockResponse);
   const limited = await app.inject({ method: 'POST', url: '/api/chat', payload });
   assert.equal(limited.statusCode, 429);
   assert.equal(limited.json().code, 'RATE_LIMITED');
@@ -140,11 +135,11 @@ test('release health identifies both deployed environments without changing mock
     for (const url of ['/healthz', '/api/health']) {
       const response = await app.inject({ url, headers: { origin } });
       assert.equal(response.statusCode, 200);
-      assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api', commit, environment });
+      assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api', commit, environment, ...(url === '/api/health' ? { chat: { mode: 'mock', configured: true } } : {}) });
       assert.equal(response.headers['access-control-allow-origin'], origin);
     }
     const reply = await app.inject({ method: 'POST', url: '/api/chat', payload, headers: { origin } });
-    assert.deepEqual(reply.json(), mockResponse);
+    assert.deepEqual({ mode: reply.json().mode, message: reply.json().message }, mockResponse);
   }
 });
 

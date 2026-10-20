@@ -234,10 +234,10 @@ export async function verifyPublicApi(target, { fetch: request = fetch } = {}) {
     throw new Error('Public health commit/environment mismatch');
   }
   const response = await get('/chat', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: 'deployment health check' }] }) });
-  if (response.status !== 200 || response.headers.get('access-control-allow-origin') !== origin) throw new Error('Public mock chat or CORS check failed');
+    body: JSON.stringify({ messages: [] }) });
+  if (response.status !== 400 || response.headers.get('access-control-allow-origin') !== origin) throw new Error('Public invalid chat request or CORS check failed');
   const chat = await response.json();
-  if (chat.mode !== 'mock' || chat.message?.role !== 'assistant' || typeof chat.message?.content !== 'string' || !chat.message.content.trim()) throw new Error('Invalid public mock chat response');
+  if (chat.code !== 'INVALID_REQUEST') throw new Error('Invalid public chat validation response');
   const preflight = await get('/chat', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
   if (preflight.status !== 204 || preflight.headers.get('access-control-allow-origin') !== origin
     || !preflight.headers.get('access-control-allow-methods')?.split(',').map((method) => method.trim()).includes('POST')
