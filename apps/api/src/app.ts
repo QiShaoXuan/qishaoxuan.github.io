@@ -9,6 +9,7 @@ import { mockProvider, validateHistory } from './chat.js';
 import type { ChatProvider, Message, Completion } from './chat.js';
 import { safeDiagnostic } from './diagnostics.js';
 import { deepseekProvider } from './deepseek.js';
+import { createGithubLoader } from './github.js';
 import { ChatError, writeSse } from './sse.js';
 import { PROMPT_VERSION, KNOWLEDGE_VERSION, KNOWLEDGE_SOURCES } from './prompts.js';
 
@@ -34,7 +35,8 @@ const chatBodySchema = {
   },
 } as const;
 
-export interface AppOptions { provider?: ChatProvider; fetch?: typeof fetch; logStream?: Writable }
+// Model and GitHub transports are separate. A model test transport never opts into live GitHub.
+export interface AppOptions { provider?: ChatProvider; fetch?: typeof fetch; githubFetch?: typeof fetch; logStream?: Writable }
 
 export async function buildApp(config: ApiConfig = loadConfig(), options: AppOptions = {}) {
   const app = Fastify({
@@ -44,7 +46,8 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
     trustProxy: ['127.0.0.1', '::1'],
     ajv: { customOptions: { removeAdditional: false, coerceTypes: false, useDefaults: false } },
   });
-  const provider = options.provider ?? (config.chat.mode === 'mock' ? mockProvider : deepseekProvider(config.chat, options.fetch));
+  const githubLoader = options.githubFetch ? createGithubLoader(options.githubFetch) : options.fetch ? undefined : createGithubLoader();
+  const provider = options.provider ?? (config.chat.mode === 'mock' ? mockProvider : deepseekProvider(config.chat, options.fetch, githubLoader));
   let concurrent = 0, used = 0, day = new Date().toISOString().slice(0, 10);
   const active = new Set<AbortController>();
   app.addHook('preClose', async () => { for (const controller of active) controller.abort(); });
@@ -121,7 +124,7 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
         if (streaming) await writeSse(reply.raw, controller.signal, 'delta', { content: result.value });
       }
       if (!completion || !['stop', 'length'].includes(completion.finishReason)) throw new ChatError('UPSTREAM_FINISH_ERROR');
-      const sources = config.chat.mode === 'mock' ? [] : KNOWLEDGE_SOURCES;
+      const sources = config.chat.mode === 'mock' ? [] : [...KNOWLEDGE_SOURCES, ...(completion.sources ?? [])];
       if (streaming) {
         await writeSse(reply.raw, controller.signal, 'done', { finishReason: completion.finishReason, sources });
         reply.raw.end();
@@ -142,7 +145,7 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
       // A provider may be blocked inside next(); cancellation is signaled, never awaited indefinitely.
       void iterator?.return({ finishReason: 'stop' }).catch(() => {});
       reply.raw.off('close', abort); active.delete(controller); concurrent--;
-      app.log.info({ route: '/api/chat', method: 'POST', id: request.id, env: config.release?.environment ?? 'local', commit: config.release?.commit, timing: performance.now() - started, firstToken, status: reply.statusCode, model: config.chat.mode === 'deepseek' ? config.chat.model : 'mock', outcome, errorCode, finish: outcome === 'success' ? completion?.finishReason : 'error', upstreamId: completion?.upstreamId, promptTokens: completion?.promptTokens, completionTokens: completion?.completionTokens, promptVersion: PROMPT_VERSION, knowledgeVersion: KNOWLEDGE_VERSION }, 'chat');
+      app.log.info({ route: '/api/chat', method: 'POST', id: request.id, env: config.release?.environment ?? 'local', commit: config.release?.commit, timing: performance.now() - started, firstToken, status: reply.statusCode, model: config.chat.mode === 'deepseek' ? config.chat.model : 'mock', outcome, errorCode, finish: outcome === 'success' ? completion?.finishReason : 'error', upstreamId: completion?.upstreamId, promptTokens: completion?.promptTokens, completionTokens: completion?.completionTokens, promptVersion: PROMPT_VERSION, knowledgeVersion: KNOWLEDGE_VERSION, repositoryRefs: completion?.sources?.map((source) => source.id) }, 'chat');
     }
   });
   return app;

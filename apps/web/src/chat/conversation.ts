@@ -1,4 +1,4 @@
-export type Source = { id: string; title: string };
+export type Source = { id: string; title: string; url?: string };
 export type Turn = {
   id: number; user: string; assistant: string;
   status: 'pending' | 'complete' | 'error' | 'interrupted';
@@ -25,5 +25,5 @@ export function historyFor(turns: Turn[], user: string): HistoryMessage[] {
 export function startTurn(turns: Turn[], id: number, user: string, retry = false): Turn[] {
   const previous = turns.at(-1);
   const base = retry && previous && previous.status !== 'complete' && previous.user === user ? turns.slice(0, -1) : turns;
-  return [...base, { id, user, assistant: '', status: 'pending' as const }].slice(-10);
+  return [...base, { id, user, assistant: '', status: 'pending' as const }];
 }

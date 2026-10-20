@@ -7,8 +7,15 @@ export type ChatEvent =
   | { type: 'error'; code: string; message: string; requestId: string };
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const string = (value: unknown, max: number): value is string => typeof value === 'string' && value.length > 0 && value.length <= max;
+export function validSourceUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'github.com' && !url.port && !url.username && !url.password && /^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[^\s]*)?$/.test(url.pathname) && !url.search && !url.hash;
+  } catch { return false; }
+}
 export function validSources(value: unknown): value is Source[] {
-  return Array.isArray(value) && value.length <= 20 && value.every((source: unknown) => record(source) && string(source.id, 100) && string(source.title, 200) && Object.keys(source).every((key) => key === 'id' || key === 'title'));
+  return Array.isArray(value) && value.length <= 20 && value.every((source: unknown) => record(source) && string(source.id, 100) && string(source.title, 200) && (source.url === undefined || validSourceUrl(source.url)) && Object.keys(source).every((key) => key === 'id' || key === 'title' || key === 'url'));
 }
 function parseEvent(type: string, data: string): ChatEvent {
   const value: unknown = JSON.parse(data);
