@@ -4,7 +4,7 @@ import { ArrowLeftStartOnRectangleIcon, ArrowRightStartOnRectangleIcon, ArrowsPo
 import { streamChat } from '../api';
 import { historyFor, startTurn } from './conversation';
 import type { Turn } from './conversation';
-import { createConversationStorage, storageKey } from './storage';
+import { atConversationCapacity, createConversationStorage, storageKey } from './storage';
 import { ChatComposer } from './beautiful/ChatComposer';
 import { ThinkingState } from './beautiful/ThinkingState';
 import { clampPosition, dockTarget, floatingSize, initialPosition, passedDragThreshold } from './geometry';
@@ -29,6 +29,10 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
   const [draft, setDraft] = useState('');
   const [storage] = useState(() => createConversationStorage(() => window.localStorage, storageKey(import.meta.env.BASE_URL, import.meta.env.DEV)));
   const [messages, setMessages] = useState<Turn[]>(() => storage.load());
+  const [capacityLocked, setCapacityLocked] = useState(storage.capacityLocked);
+  const [sendCapacityExceeded, setSendCapacityExceeded] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearFailed, setClearFailed] = useState(false);
   const [storageUnavailable, setStorageUnavailable] = useState(storage.unavailable);
   const messagesRef = useRef(messages);
   const [request, setRequest] = useState<RequestState>({ state: 'idle' });
@@ -134,6 +138,8 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
     setMessages(next);
     storage.save(next);
     setStorageUnavailable(storage.unavailable);
+    setCapacityLocked(storage.capacityLocked);
+    setSendCapacityExceeded(false);
   }
 
   function stop() {
@@ -147,20 +153,36 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
   }
 
   function clear() {
+    if (!confirmClear) return;
+    if (!storage.clear(true)) {
+      setClearFailed(true);
+      setStorageUnavailable(storage.unavailable);
+      return;
+    }
     pending.current?.abort();
     pending.current = null;
-    updateMessages(() => []);
+    setClearFailed(false);
+    messagesRef.current = [];
+    setMessages([]);
+    setCapacityLocked(false);
+    setSendCapacityExceeded(false);
+    setStorageUnavailable(storage.unavailable);
+    setConfirmClear(false);
+    setDraft('');
     setRequest({ state: 'idle' });
   }
 
   async function send(content: string, retry = false) {
     const text = content.trim();
-    if (pending.current || !text || text.length > 4000) return;
+    if (pending.current || capacityLocked || storage.capacityLocked || atConversationCapacity(messagesRef.current) || !text || text.length > 4000) return;
+    const id = nextId.current;
+    const next = startTurn(messagesRef.current, id, text, retry);
+    if (atConversationCapacity(next)) { setSendCapacityExceeded(true); return; }
+    const history = historyFor(messagesRef.current, text);
     const controller = new AbortController();
     pending.current = controller;
-    const id = nextId.current++;
-    const history = historyFor(messagesRef.current, text);
-    updateMessages((current) => startTurn(current, id, text, retry));
+    nextId.current++;
+    updateMessages(() => next);
     if (!retry) setDraft('');
     setRequest({ state: 'pending', content: text, generating: false });
     let finished = false;
@@ -170,11 +192,18 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
         if (event.type === 'meta') updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, mode: event.mode } : turn));
         if (event.type === 'delta') {
           updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, assistant: turn.assistant + event.content } : turn));
-          setRequest({ state: 'pending', content: text, generating: true });
+          if (!storage.capacityLocked) setRequest({ state: 'pending', content: text, generating: true });
         }
         if (event.type === 'done') {
           finished = true;
           updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, sources: event.sources, finishReason: event.finishReason } : turn));
+        }
+        if (storage.capacityLocked) {
+          pending.current = null;
+          controller.abort();
+          updateMessages((current) => current.map((turn) => turn.id === id ? { ...turn, status: 'interrupted' } : turn));
+          setCapacityLocked(true);
+          setRequest({ state: 'idle' });
         }
       });
       if (pending.current !== controller || controller.signal.aborted) return;
@@ -215,23 +244,30 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
                 <button type="button" onClick={() => changeMode('right')} title="停靠右侧" aria-label="停靠右侧" aria-pressed={mode === 'right'}><ArrowRightStartOnRectangleIcon aria-hidden="true" /></button>
                 {mode !== 'floating' && <button type="button" onClick={() => changeMode('floating')} title="恢复浮窗" aria-label="恢复浮窗"><ArrowsPointingOutIcon aria-hidden="true" /></button>}
               </>}
-              <button type="button" onClick={clear} title="清空对话" aria-label="清空对话"><TrashIcon aria-hidden="true" /></button>
+              <button type="button" onClick={() => setConfirmClear(true)} title="清空对话" aria-label="清空对话"><TrashIcon aria-hidden="true" /></button>
               <button type="button" onClick={close} title="关闭聊天" aria-label="关闭聊天"><XMarkIcon aria-hidden="true" /></button>
             </div>
           </header>
+          {confirmClear && <div className="chat-clear-confirm" role="alertdialog" aria-labelledby="chat-clear-title" aria-describedby="chat-clear-description">
+            <h3 id="chat-clear-title">清空聊天记录</h3>
+            <p id="chat-clear-description">清空当前浏览器中的本环境聊天记录？清空后无法恢复。</p>
+            {clearFailed && <p role="alert">清除失败，请检查浏览器存储权限后重试</p>}
+            <div><button type="button" onClick={() => { setConfirmClear(false); setClearFailed(false); }}>取消</button><button type="button" onClick={clear}>确认清空</button></div>
+          </div>}
+          {(capacityLocked || sendCapacityExceeded) && <div className="chat-capacity-warning" role="alert"><p>{capacityLocked ? '聊天记录已达到 500 KiB 容量限制，继续聊天前请清除聊天缓存。已有记录会保留，清空后无法恢复。' : '发送本条消息将达到 500 KiB 容量限制，请缩短消息或清除聊天缓存。'}</p><button type="button" onClick={() => setConfirmClear(true)}>清除聊天缓存</button></div>}
           <div className="chat-thread" ref={thread} role="log" aria-label="聊天记录" aria-live="polite" aria-relevant="additions text">
-            {messages.length === 0 && <div className="chat-welcome"><span className="chat-welcome-icon"><ChatBubbleLeftRightIcon aria-hidden="true" /></span><h3>从一段对话开始</h3><p>工作经历、项目实践，或是协作方式，<br />你想先了解哪一部分？</p><div className="chat-suggestions">{['聊聊你的工作经历', '介绍一个代表项目', '你如何与团队协作？'].map((text) => <button key={text} type="button" onClick={() => { void send(text); }}>{text}</button>)}</div></div>}
+            {messages.length === 0 && <div className="chat-welcome"><span className="chat-welcome-icon"><ChatBubbleLeftRightIcon aria-hidden="true" /></span><h3>从一段对话开始</h3><p>工作经历、项目实践，或是协作方式，<br />你想先了解哪一部分？</p><div className="chat-suggestions">{['聊聊你的工作经历', '介绍一个代表项目', '你如何与团队协作？'].map((text) => <button key={text} type="button" disabled={capacityLocked} onClick={() => { void send(text); }}>{text}</button>)}</div></div>}
             {messages.map((turn) => <div key={turn.id} className="chat-turn">
               <div className="beautiful-message" data-role="user"><span className="chat-message-label">你</span><p>{turn.user}</p></div>
-              {(turn.assistant || turn.status === 'interrupted' || turn.status === 'error') && <div className="beautiful-message" data-role="assistant"><span className="chat-message-label">{turn.mode === 'mock' ? '演示回复' : 'AI 回复'}{turn.finishReason === 'length' ? ' · 达到长度上限' : turn.status === 'interrupted' ? ' · 已停止 / 中断' : turn.status === 'error' ? ' · 未完成' : ''}</span><p>{turn.assistant || '未生成回复。'}</p>{turn.status === 'complete' && !!turn.sources?.length && <p className="chat-sources">参考：{turn.sources.map((source) => source.title).join('、')}</p>}</div>}
+              {(turn.assistant || turn.status === 'interrupted' || turn.status === 'error') && <div className="beautiful-message" data-role="assistant"><span className="chat-message-label">{turn.mode === 'mock' ? '演示回复' : 'AI 回复'}{turn.finishReason === 'length' ? ' · 达到长度上限' : turn.status === 'interrupted' ? ' · 已停止 / 中断' : turn.status === 'error' ? ' · 未完成' : ''}</span><p>{turn.assistant || '未生成回复。'}</p>{turn.status === 'complete' && !!turn.sources?.length && <p className="chat-sources">参考：{turn.sources.map((source, index) => <span key={source.id}>{index > 0 && '、'}{source.url ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> : source.title}</span>)}</p>}</div>}
             </div>)}
             {request.state === 'pending' && <ThinkingState generating={request.generating} />}
-            {request.state === 'idle' && ['interrupted', 'error'].includes(messages.at(-1)?.status ?? '') && <div className="chat-error" role="status"><p>上次回复已中断，可以重新发送。</p><button type="button" onClick={() => { void send(messages.at(-1)!.user, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
-            {request.state === 'error' && <div className="chat-error" role="status"><p>{request.message}</p><button type="button" onClick={() => { void send(request.content, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
+            {!capacityLocked && request.state === 'idle' && ['interrupted', 'error'].includes(messages.at(-1)?.status ?? '') && <div className="chat-error" role="status"><p>上次回复已中断，可以重新发送。</p><button type="button" onClick={() => { void send(messages.at(-1)!.user, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
+            {!capacityLocked && request.state === 'error' && <div className="chat-error" role="status"><p>{request.message}</p><button type="button" onClick={() => { void send(request.content, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
           </div>
-          <ChatComposer draft={draft} onDraftChange={setDraft} pending={request.state === 'pending'} onSend={() => { void send(draft); }} onCancel={stop} inputRef={input} />
+          <ChatComposer draft={draft} onDraftChange={(value) => { setDraft(value); setSendCapacityExceeded(false); }} pending={request.state === 'pending'} disabled={capacityLocked} onSend={() => { void send(draft); }} onCancel={stop} inputRef={input} />
           {storageUnavailable && <p className="chat-disclaimer" role="status">本地存储不可用，当前对话仅在内存中保留。</p>}
-          <p className="chat-disclaimer">AI 可能出错。对话上下文将发送至 DeepSeek；记录仅保存在本浏览器，可清空。</p>
+          <p className="chat-disclaimer">当前对话使用 deepseek。 AI 可能出错，可以和本人聊聊～</p>
         </section>
       </>}
     </>

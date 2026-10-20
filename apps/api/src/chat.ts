@@ -1,6 +1,7 @@
 import { ChatError } from './sse.js';
 export interface Message { role: 'user' | 'assistant'; content: string }
-export interface Completion { finishReason: 'stop' | 'length'; promptTokens?: number; completionTokens?: number; upstreamId?: string }
+export interface Source { id: string; title: string; url?: string }
+export interface Completion { finishReason: 'stop' | 'length'; promptTokens?: number; completionTokens?: number; upstreamId?: string; sources?: Source[] }
 export interface ChatProvider {
   stream(messages: Message[], signal: AbortSignal): AsyncGenerator<string, Completion>;
 }

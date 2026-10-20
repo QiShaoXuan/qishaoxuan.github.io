@@ -25,10 +25,12 @@
 .chat-panel button:focus-visible, .chat-launcher:focus-visible { outline: 2px solid #365b77; outline-offset: 3px; }
 .chat-panel svg, .chat-launcher svg { width: 20px; height: 20px; flex-shrink: 0; }
 .chat-launcher {
-  position: fixed; z-index: 30; right: 28px; bottom: 28px; display: inline-flex; align-items: center; gap: 10px;
-  border: 1px solid #344e61; border-radius: 999px; padding: 13px 18px; background: var(--ink); color: #fffefa;
+  position: fixed; z-index: 30; right: 28px; bottom: 28px; display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid #344e61; border-radius: 999px; padding: 9px 14px; background: var(--ink); color: #fffefa;
+  font-size: 14px; line-height: 20px;
   box-shadow: 0 6px 20px #23394a26; transition: background-color 150ms, transform 150ms;
 }
+.chat-launcher svg { width: 18px; height: 18px; }
 .chat-launcher[hidden] { display: none; }
 .chat-launcher:hover { background: #355267; transform: translateY(-2px); }
 .chat-panel {
@@ -109,3 +111,12 @@
 
 .chat-turn { display: flex; flex-direction: column; gap: 18px; flex-shrink: 0; }
 .beautiful-message .chat-sources { margin-top: 8px; color: var(--ink-3); font-size: 12px; }
+.chat-sources a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.chat-sources a:focus-visible { outline: 2px solid #365b77; outline-offset: 3px; }
+.chat-capacity-warning, .chat-clear-confirm { flex-shrink: 0; margin: 10px 12px 0; padding: 12px; border: 1px solid #d8c9b6; border-radius: 8px; background: #faf5ed; color: var(--ink); font-size: 12px; }
+.chat-capacity-warning p, .chat-clear-confirm p { margin: 0 0 9px; line-height: 1.6; }
+.chat-clear-confirm h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.chat-clear-confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
+.chat-capacity-warning button, .chat-clear-confirm button { padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.chat-clear-confirm button:last-child { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.beautiful-field textarea:disabled { cursor: not-allowed; opacity: .6; }

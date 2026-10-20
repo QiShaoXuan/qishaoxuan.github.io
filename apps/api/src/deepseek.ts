@@ -2,14 +2,17 @@ import type { ApiConfig } from './config.js';
 import type { ChatProvider, Completion } from './chat.js';
 import { buildSystemPrompt } from './prompts.js';
 import { ChatError, readSse } from './sse.js';
+import type { GithubLoader } from './github.js';
 
-export function deepseekProvider(config: ApiConfig['chat'], fetcher: typeof fetch = fetch): ChatProvider {
+export function deepseekProvider(config: ApiConfig['chat'], fetcher: typeof fetch = fetch, githubLoader?: GithubLoader): ChatProvider {
   return {
     async *stream(messages, signal) {
+      const context = githubLoader ? await githubLoader(messages, signal) : undefined;
+      signal.throwIfAborted();
       const response = await fetcher('https://api.deepseek.com/chat/completions', {
         method: 'POST', signal,
         headers: { 'content-type': 'application/json', authorization: `Bearer ${config.apiKey}` },
-        body: JSON.stringify({ model: config.model, messages: [{ role: 'system', content: buildSystemPrompt() }, ...messages], thinking: { type: 'disabled' }, stream: true, stream_options: { include_usage: true }, max_tokens: config.maxTokens, temperature: 0.3 }),
+        body: JSON.stringify({ model: config.model, messages: [{ role: 'system', content: buildSystemPrompt(context) }, ...messages], thinking: { type: 'disabled' }, stream: true, stream_options: { include_usage: true }, max_tokens: config.maxTokens, temperature: 0.3 }),
       });
       if (!response.ok || !response.body) {
         await response.body?.cancel();
@@ -42,7 +45,7 @@ export function deepseekProvider(config: ApiConfig['chat'], fetcher: typeof fetc
         }
       }
       if (!done || !finish) throw new ChatError('UPSTREAM_TRUNCATED');
-      return { ...finish, ...(promptTokens !== undefined ? { promptTokens } : {}), ...(completionTokens !== undefined ? { completionTokens } : {}), ...(upstreamId ? { upstreamId } : {}) };
+      return { ...finish, ...(promptTokens !== undefined ? { promptTokens } : {}), ...(completionTokens !== undefined ? { completionTokens } : {}), ...(upstreamId ? { upstreamId } : {}), ...(context?.repositories.length ? { sources: context.repositories.map((repository) => repository.source) } : {}) };
     },
   };
 }
