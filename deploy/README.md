@@ -1,12 +1,12 @@
 # 简历网站部署环境
 
-统一工作仓库：`/Users/bytedance/mygit/qishaoxuan.github.io`。前端使用 GitHub Pages，聊天接口继续部署在下述 ECS；前后端代码、内容及部署配置后续均在本仓库维护。本文中的 Next.js standalone 发布说明仅适用于选择在 ECS 运行的服务部分，GitHub Pages 只接收前端静态构建产物。
+统一工作仓库：`/Users/bytedance/mygit/qishaoxuan.github.io`。前端使用 GitHub Pages，聊天接口继续部署在下述 ECS；前后端代码、内容及部署配置后续均在本仓库维护。前端使用 React + TypeScript + Vite，后端使用 Node.js + TypeScript + Fastify；GitHub Pages 只接收 `apps/web/dist/` 静态产物。
 
 目标服务器：阿里云北京 ECS `101.201.78.159`，Ubuntu 24.04，2 核 2GB。
 
 采用 Node.js 24 LTS + Nginx + systemd。网站应用以普通用户 `resume` 运行，仅监听 `127.0.0.1:3000`。Nginx 提供公网入口；`/api/chat` 关闭响应缓冲，预留 SSE 流式回复。未安装 Docker、PM2 或数据库。
 
-## 已验证状态（2026-10-19）
+## 环境准备验证记录（2026-10-19）
 
 - Node `24.22.0`、npm `11.19.1`、Ubuntu 仓库 Nginx `1.24.0-2ubuntu7.18`；官方 Node 发行包 SHA256 校验通过。
 - `resume` 专用公钥登录成功；sudo 仅授权重启 `resume.service`。运行进程用户确认是 `resume`。
@@ -30,10 +30,10 @@ bash /path/to/deploy/bootstrap.sh /path/to/admin-key.pub
 
 2026-10-19 已完成配置并验证：
 
-- 正式 Let's Encrypt 证书包含 IP SAN `101.201.78.159`，签发者 `YE1`；当前证书到期时间为北京时间 **2026-10-26 11:12:31**，后续随自动续期更新。
+- 正式 Let's Encrypt 证书包含 IP SAN `101.201.78.159`，签发者 `YE1`；当时证书到期时间为北京时间 **2026-10-26 11:12:31**，实时到期时间随自动续期更新。
 - 本机系统 curl 使用默认信任库验证通过；Python 使用现有 certifi 可信 CA 库验证通过，IP 匹配且协商 TLS 1.3。公网 HTTPS `/healthz` 返回 200，首页仍为维护状态 503；HTTP 自动跳转 HTTPS。
 - `renew --dry-run --run-deploy-hooks` 成功，验证了挑战文件及 Nginx 重载；正式续期 service 也已手动执行，退出状态为 `0/SUCCESS`。
-- timer 已启用并等待执行；核验时下次检查为北京时间 `2026-10-20 00:08:57`。本次 HTTPS 配置备份位于 `/var/backups/resume-https/20261019T121054-3784/`。
+- timer 已启用并等待执行；2026-10-19 核验时下次检查为北京时间 `2026-10-20 00:08:57`；当前计划以 `systemctl list-timers` 为准。本次 HTTPS 配置备份位于 `/var/backups/resume-https/20261019T121054-3784/`。
 - 启用 HTTPS 后再次完整执行 bootstrap 通过，代理配置 SHA256 未变化；证书私钥权限为 root:root 600，系统无失败服务。
 
 本项目提供 `101.201.78.159` 的 IP 证书配置，不需要购买域名。完成首次环境安装后，以 root 执行：
@@ -112,31 +112,71 @@ systemctl reload nginx.service
 
 安全组只允许当前管理出口 `211.95.64.140/32` 访问 22，80/443 对公网开放，保留 ICMP。出口 IP 改变后须在阿里云控制台更新 SSH 白名单，禁止为了方便直接长期开放全部端口。
 
-## 后续发布应用
+## 发布前后端基础架构
 
-如果前端使用 GitHub Pages，前端须构建为纯静态文件；聊天 `/api/chat` 仍运行在 ECS。Pages 的实际 origin 确定后，再为 API 配置 CORS 与 OPTIONS 预检。HTTPS 本身不会自动解决跨域问题。
+以下流程用于发布连接检查页、最小 Mock 聊天联调表单与 API 基础接口；合法聊天请求返回 HTTP 200 的固定 Mock 回复，尚无模型调用或 SSE。线上是否更新，以本次发布后的实际检查为准；前述 2026-10-19 记录对应环境准备阶段。
 
-应用尚未实现，因此当前不能执行网站构建。如果继续在 ECS 运行 Next.js 服务，开启 `output: 'standalone'`，在 Linux x64 的构建环境使用相同 Node 大版本构建；涉及原生依赖时，不能直接上传 macOS 构建产物。
+### GitHub Pages
 
-每个版本目录须含 `server.js`、standalone 依赖、`public/`（项目存在时）、`.next/static/`。运行环境从 `/etc/resume/resume.env` 注入。模型密钥只填在服务器该文件中，禁止使用 `NEXT_PUBLIC_` 前缀或放入前端产物。Next.js 构建时读取的变量需在 CI 单独管理，运行时文件不会补充构建时变量。
+`.github/workflows/pages.yml` 在推送 `master` 后执行类型检查、Lint、测试和构建，且仅上传 `apps/web/dist/`。仓库 Pages 来源应设为 GitHub Actions。此次发布会将现有主页替换为前后端连接检查页及 Mock 聊天联调表单，正式简历与完整聊天界面尚待后续实现。
 
-以 `resume` 上传准备好的版本，例如 `/srv/resume/releases/20261019-001/`；记录旧链接目标后，原子切换并重启：
+本地可执行 `npm ci`、`npm run build:web` 检查产物。Vite 生产构建默认请求 `https://101.201.78.159`，需要覆盖时在构建前注入 `VITE_API_BASE_URL`；所有 `VITE_` 值都属于公开内容。不要将仓库根目录、`private/`、API 或部署配置作为 Pages 产物。
+
+### ECS API
+
+在 Node 24 / npm 11 环境执行：
 
 ```bash
-cd /srv/resume
-readlink current
-ln -s /srv/resume/releases/20261019-001 .current-next
-mv -Tf .current-next current
-sudo /usr/bin/systemctl restart resume.service
+npm ci
+npm run package:api
 ```
 
-验证应用健康检查和真实聊天响应；应用需要继续提供 `/healthz`。失败时将链接切回刚才记录的旧版本并重启。删除旧版本前确认它不是当前运行版本。首次上线前需根据实际应用内存占用复核 1GB 服务限制。
+脚本先编译 API，再生成 `.artifacts/api-release.tgz`。压缩包包含平铺后的 `apps/api/dist/*.js`、最小运行 `package.json` 和基于 `deploy/api-package-lock.json` 的独立生产锁文件；不包含 `node_modules/`、开发工具、私人资料或密钥。仓库根锁文件包含 workspaces，不能替代这个独立生产锁。
+
+以 `resume` 将压缩包上传并解压到一个新的 `/srv/resume/releases/<版本>/` 目录，在该目录运行：
+
+```bash
+npm ci --omit=dev --ignore-scripts
+```
+
+运行依赖在服务器依据锁文件安装，不在小内存 ECS 上执行 TypeScript 编译。发布目录布局为：
+
+```text
+/srv/resume/releases/<版本>/
+  server.js
+  app.js
+  config.js
+  package.json
+  package-lock.json
+  node_modules/
+```
+
+JS 文件平铺在版本目录根部，以匹配现有 unit 的 `/srv/resume/current/server.js`。保留旧发布目录用于回滚，不要覆盖当前运行版本。
+
+systemd 从 `/etc/resume/resume.env` 注入运行环境。保留 `NODE_ENV=production`、`HOSTNAME=127.0.0.1`、`PORT=3000`，并设置 `API_ALLOWED_ORIGINS=https://qishaoxuan.github.io`。不要把开发 `.env` 的 localhost 来源复制到生产。API 默认也仅允许这个 Pages origin，处理 OPTIONS 预检；无 Origin 的服务端请求可以访问，CORS 不替代鉴权。
+
+准备完依赖后，通过部署脚本激活新版本：
+
+```bash
+bash /path/to/deploy/activate-api.sh /srv/resume/releases/<版本>
+```
+
+脚本先在本机 3001 端口预检候选版本的健康接口与 Mock 聊天（HTTP 200、`mode: "mock"`），再原子切换 `/srv/resume/current` 并重启 `resume.service`；切换后健康检查失败会自动恢复旧链接并重启。执行前确保 3001 未被其他服务占用，并保留旧链接目标。发布后仍需通过公网 HTTPS 和 Pages 浏览器实际检查，不能仅凭进程启动认定上线成功。
+
+```bash
+curl --fail https://101.201.78.159/healthz
+curl --fail https://101.201.78.159/api/health
+```
+
+两项应返回 `{"status":"ok","service":"resume-api"}`；浏览器连接检查也应显示 `resume-api`。合法聊天请求应返回 HTTP 200 和 `{ mode: "mock", message: { role: "assistant", content: string } }`。固定内容为“这是一条 Mock 测试回复，聊天链路已接通。正式工作经历问答将在后续接入。”；不调用模型、不回显用户内容、不读取 `private/`。
+
+API 仅信任回环代理传递的客户端地址，配合现有 Nginx 覆盖 `X-Forwarded-For`；聊天限流是单进程内存计数，默认每 IP 每分钟 10 次，健康检查和预检不消耗额度。当前没有模型密钥配置项；后续接入模型时只在服务端环境文件保存密钥，并补充预算控制。API 关闭请求日志，不打印消息正文。
 
 ## 上线前仍需完成
 
-1. 实现并发布简历网站；采用 GitHub Pages 时，配置静态构建与 API 跨域访问。
-2. 配置模型 API 密钥、额度和聊天限流。
+1. 基础链路上线验证后，基于根目录 `readme.md` 实现正式简历展示与聊天界面。
+2. 当前保留 Mock；后续接入真实模型时，再配置服务端密钥、总额度与并发控制。
 3. 验证简历页面、真实 SSE、异常提示及日志隐私；配置必要的备份与监控。
 4. 如后续选用自有域名，再配置域名证书、DNS 及对应接入手续；IP HTTPS 不要求购买域名。
 
-参考：[Node 官方下载](https://nodejs.org/en/download)、[Next.js 自托管](https://nextjs.org/docs/app/guides/self-hosting)、[Nginx 代理缓冲](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering)。
+参考：[Node 官方下载](https://nodejs.org/en/download)、[Nginx 代理缓冲](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering)。

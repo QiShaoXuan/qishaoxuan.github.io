@@ -1,81 +1,122 @@
-# 简历网站
+## 个人相关
 
-本仓库是简历网站后续开发、内容维护和部署配置的统一工作目录：
+- 姓名：齐少轩
+- 毕业院校及专业：山西农业大学（2013.09 ~ 2017.06） - 信息与计算科学
+- GitHub：[https://github.com/QiShaoXuan](https://github.com/QiShaoXuan)
 
-```text
-/Users/bytedance/mygit/qishaoxuan.github.io
-```
+## 联系方式
 
-当前开发分支：`codex/resume-frontend`。
+- 电话：18404984029
+- 邮箱：474021214@qq.com
 
-| 部分 | 位置与职责 |
-| --- | --- |
-| 简历前端 | GitHub Pages：`https://qishaoxuan.github.io/` |
-| 聊天接口 | ECS：`https://101.201.78.159/api/chat`，接口尚待实现 |
-| ECS 健康检查 | `https://101.201.78.159/healthz` |
-| 最新简历源 | [resume.md](resume.md)，作为简历内容的主要依据 |
-| 服务与证书部署配置 | [deploy/README.md](deploy/README.md) |
+## 工作经历
 
-## 本地生成和预览
+- 2023-11 ~ 至今 - ByteDance
+- 2022-05 ~ 2023-09 - AFFiNE
+- 2019-11 ~ 2022-05 - 京东集团-平台业务研发部-应用业务产品研发部
+- 2019-03 ~ 2019-11 - FinxOS
+- 2017.03 ~ 2019.03 - 上海垓方网络科技有限公司
 
-```bash
-npm ci
-npm run md2html
-python3 -m http.server 8080 --bind 127.0.0.1
-```
+## 个人总结
 
-预览生成的简历：`http://127.0.0.1:8080/resume.html`。`md2html.js` 固定读取本仓库的 `resume.md`，输出本仓库的 `resume.html`。本次迁移保留既有依赖版本，没有引入前端框架或部署流水线；原 `index.html` 暂时保留为项目导航页，后续开发时再替换为正式简历前端。
+9 年前端研发经验，长期负责复杂 B 端运营平台、AI 应用与高流量业务建设，具备从产品方案、前端架构到服务端、数据链路的端到端交付经验。熟练使用 JavaScript（ES6+）、TypeScript、React 和 Vue，具备组件体系、工程化、性能优化、富文本编辑器及可视化开发经验。GitHub 独立开发维护 3.8k+ star 项目，核心参与 60k+ star 开源项目；具备团队协作、技术分享与项目推进经验。
 
-## 内容和私有资料
+## 项目经验
 
-- [resume.md](resume.md)：最新简历，优先于旧 HTML、旧 PDF 及工作经历底稿。
-- [content/work-experience/gigacre-work.md](content/work-experience/gigacre-work.md)：早期工作经历补充材料，不作为最新事实的覆盖来源。
-- `archive/resume-2023/`：2023 年旧 PDF，仅作历史留存，不接入当前简历下载入口。
-- `private/`：本机聊天风格原始报告及个人求职资料，已加入 `.gitignore`。不要提交、上传或打包到静态部署产物；后续按公开范围提取服务端角色设定。
+### ByteDance（2023-11 ~ 至今）
 
-所有后续前端、聊天服务代码及部署维护均在本仓库中进行。模型密钥和证书私钥继续仅保存在服务器；前端通过 HTTPS 调用 ECS。接入时，API 的 CORS 应允许 `https://qishaoxuan.github.io` 并处理预检；CORS 不替代接口鉴权和限流。
+平台前端研发，负责电商 CRM 商家/商品运营工具、AI 运营产品及工程能力建设，参与 Go 服务迁移与全栈交付。
 
-GitHub Pages 后续只发布明确的前端静态构建产物，不把仓库整个工作目录（包括 `private/`、部署脚本和服务端资料）作为发布产物。
+- **AI 运营产品**：负责 CRM AI 点位菜单的设计与落地，通过业务实体事件、通用 SDK 与配置化接入衔接业务页面和 AI 助手，推动助手 UV 提升 1.72 倍、月渗透率提升 16.7pp；参与从 0 到 1 建设运营与管理版 AI 工作台。负责 AI 橙蕉消息复制与飞书文档导出，统一离屏渲染和截图链路，保留文本/Markdown，对复杂卡片和混排内容按节点截图；支持单条、多选及全量历史消息处理，通过并发控制、超时取消和剪贴板降级处理跨端兼容问题。
+- **首屏性能与监控**：参与 AI 橙蕉 PC / 移动端首屏优化，梳理加载关键链路，建设按业务路由观测 TTFMP 的双端看板，补齐根入口分流统计，结合接口耗时、LCP、INP 定位瓶颈。对比 2026 年 8 月 10–16 日与 10 月 2–8 日线上统计，PC 工作台 TTFMP P75 由 2.551s 降至 1.711s（-32.9%），移动端工作台由 4.294s 降至 3.446s（-19.7%）。
+- **商家与商品运营平台**：负责商家广告能力从 0 到 1 建设，整合店铺投放关系、经营指标与诊断工具，推动广告模块周渗透率由 44.29% 提升至 62.55%（+18.26pp）；参与商品运营平台迭代，带户运营用户 7 日渗透率由 42.45% 提升至 74.3%（+31.85pp）。
+- **智能客服与知识库**：负责知识库配置后台与智能客服监控看板建设，支持商品知识采纳、自定义配置和使用转化分析；推动知识库可用率提升 22.97pp、覆盖率提升 11.16pp、精排准确率提升 15.8pp，监控看板上线后智能客服渗透率达 50%、商家行动率达 30%。
+- **OnCall 录屏与诊断**：跨数据、服务端与前端完成录屏采集、工单关联、数据聚合、权限脱敏、回放及分析看板闭环，覆盖 CRM 全部子应用菜单；阶段样本中，有录屏工单相较无录屏工单平均处理时长低 27.61%，平均完结时长低 11.68%。采用 Worker 与固定时长环形缓冲降低运行时开销，仅在用户确认后按需上传，并支持多层数据脱敏与灰度接入。
+- **工程效能与服务迁移**：设计运营配置化消费端，将圈选、状态流转、列表/功能块与目标复盘抽象为通用模型，通过兼容层承接存量商家/商品系统；牵头存量 Node.js 服务改造，完成 ECAM 菜单数据 5 个接口的 Go 迁移，随一期进入灰度。在跨团队支援期间沉淀 5 个可复用组件及基于 SWR 的请求实践，完成 3 次技术分享。
 
-迁移清单及当前状态见 [docs/migration.md](docs/migration.md)。
+### AFFiNE(2022-05 ~ 2023-09)
 
-## 原主页项目列表
+https://github.com/toeverything/AFFiNE
 
-以下保留原仓库的导航资料。
+开源的 local-first 知识库，将文档编辑与白板放在同一个工作空间中，GitHub 60k+ star。担任前端核心开发，参与项目从早期 live demo 到 Web、Electron 产品的迭代；在 AFFiNE 主分支提交 440+ 次，在 BlockSuite 提交 90 次。
 
-语言和框架只是实现目标的一个工具和手段。
+- 参与将早期项目调整为 pnpm monorepo，拆分 `frontend / common / backend` 以及 UI、i18n、编辑器等公共包，供 Web 和 Electron 共用。
+- 重构 Provider 与 AppState，完成 workspace change、theme change、`MessageCenterHandler` 等跨模块事件处理，梳理 workspace 切换和应用初始化逻辑。
+- 负责 Workspace 管理、子页面、Pinboard、收藏、回收站、快捷搜索、主题、账号及成员邀请等功能，并重构设置中心。
+- 参与 `@toeverything/components` 组件替换和维护，将拖拽库从 `react-dnd` 替换为 `dnd-kit`，并将 E2E 测试从 Electron 调整为 Puppeteer 方案。
+- 参与底层块级编辑器 [BlockSuite](https://github.com/toeverything/blocksuite) 开发：
+  - 重构 clipboard，整理 `block2html`、`html2block` 和 `ClipboardUtils`，修复多块复制、特殊字符、粘贴多余内容等问题。
+  - 从零实现 Bookmark Block，包括链接识别、卡片加载与渲染、白板模式下的插入和拖拽，以及 undo/redo 处理和测试。
+  - 参与 block 与 store 解耦、动态 workspace id、space 属性、`shiftPage` API 和 readonly 状态等底层能力的开发。
 
-君子役物，小人役于物。
+### 京东(2019-11 ~ 2022-05)
 
-这里用来记录写过的小玩意儿，以防自己都忘记。
+1. **秒杀频道大促会场开发及日常活动迭代**
 
-1. [css_tricks](https://github.com/QiShaoXuan/css_tricks)
+   作为秒杀频道 h5 开发一号位，负责大促会场等大流量业务场景开发及日常迭代
 
-2. [js_tricks](https://github.com/QiShaoXuan/js_tricks)
+   **在日常业务开发外，主导完成了秒杀主会场的性能优化：**
 
-3. [blog](https://github.com/QiShaoXuan/blog)
+   - 背景：秒杀会场存在首屏加载时间长，白屏时间久，滑动卡顿的问题
+   - 分析：
+     - 通过内部性能数据埋点平台，分析需要优化的方向（首屏加载时间）
+     - chrome 浏览器 performance 面板检查滑动页面卡顿原因：页面内存在多个自动播放的轮播组件，在滑动时自动播放的轮播组件导致页面元素回流，导致卡顿
+   - 解决方案：
+     - code review 检查历史逻辑遗留，检查包的引入方式，减少构建后的包体积
+     - 添加懒加载，首屏仅请求首屏需要的数据，其他数据在页面滑动到位后再次请求
+     - 移除html中通过script引入的SDK，改为按需加载，动态引入
+     - 滑动组件添加监听，仅在当前窗口中显示时才开始自动播放
+     - 添加骨架屏
+   - 成果
+     - 包体积由407KB压缩至245KB，减少约39%
+     - 加载速度由2224ms减少至1116ms，提升47%
 
-4. [animate_resume_ts](https://github.com/QiShaoXuan/animate_resume_ts)
+2. **leo脚手架**
 
-5. [wavejs](https://github.com/QiShaoXuan/wavejs)
+   一个的覆盖开发全链路，支持扩展、定制的前端脚手架工具
 
-6. [rhythm-ripple](https://github.com/QiShaoXuan/rhythm-ripple)
+   - 背景：在新团队成立时内部需要一个脚手架工具，同时考虑到团队之间的脚手架、模板、开发标准互不相通，需要一个能解决此问题的脚手架工具，既减免各团队内脚手架维护的重复人效，也为新团队提供快速沉淀的能力。
+   - 解决方案：
+     分层设计 + 插件功能
+   - 成果
+     - 为公司内19个部门，64个团队采纳使用，被多个内部平台指定为官方脚手架，极大提高了开发效率
+     - 社区版开源地址：https://github.com/JDFED/leo
+     - 相关分享文章：
+       - 掘金：https://juejin.cn/post/7049576737490862093
+       - 京东零售技术：https://mp.weixin.qq.com/s/ZtbRho6MKKL1CYiCJpgpOg
 
-7. [dont-touch-white](https://github.com/QiShaoXuan/dont-touch-white)
+### Finxos (2019-03 ~ 2019-11)
 
-8. [log-tree](https://github.com/QiShaoXuan/log-tree)
+1. **Finxos CMS 平台**
 
-9. [log-dir-tree](https://github.com/QiShaoXuan/log-dir-tree)
+   基于 React.js + gutenberg.js + echart.js + antd.js 搭建的管理系统，主要功能：支持金融机构编辑研报及各类图表，支持其发布为小程序，订阅号，移动端 H5 页面，并提供相应的访问权限，统计及定制化。其中主要负责报告相关部分的研发。
 
-10. [PAnimate](https://github.com/QiShaoXuan/PAnimate)
+   1. 基于 gutenberg.js 搭建的富文本编辑器
+      - 增加提纲，编辑历史等功能
+      - 根据实际业务增加图表编辑，文件上传，列表等多个模块，并对已有模块进行优化。
+      - 支持自定义样式地导出为便签（图片），word，发布至订阅号及小程序，同时负责 word，订阅号，小程序等各端解析。
+   2. 数据搜索
+      - 搜索界面动画设计与实现
+      - 编写搜索补全提示组件
+   3. 各个功能模块及页面实现
 
-11. [bundle_email_template](https://github.com/QiShaoXuan/bundle_email_template)
+2. **秒图**
 
-12. [pazzle](https://github.com/QiShaoXuan/pazzle)
+   微信小程序项目
 
-13. [particleText](https://github.com/QiShaoXuan/particleText)
+   1. 配合 echart.js，支持自定义生成数据
+   2. 配合管理系统解析 html 生成小程序页面
+   3. 负责相关功能模块开发
 
-14. [vue_tetris](https://github.com/QiShaoXuan/vue_tetris)
+### 垓方(2017.03 ~ 2019.03)
 
-15. [messyBalls](https://qishaoxuan.github.io/messyBalls/)
+- **Gigacre 官方平台**：基于 jQuery、Sass、Gulp 和 ThinkPHP 5 模板系统开发企业展示平台；负责打包工具、公共样式与通用组件，并实现百度地图扩展。
+- **美丽家园**：基于 Vue 和 CesiumJS 开发物业可视化管理系统；封装坐标点、飞行动画和测量工具，并实现监控视频流接入与可拖拽的多窗口预览。
+- **全景编辑器**：基于 jQuery 和 Krpano 开发内部全景内容编辑工具，支持视角、热点、沙盘与场景编辑。
 
+## 个人项目及作品
+
+- [CSS Tricks](https://qishaoxuan.github.io/css_tricks/) - 常用 CSS 总结
+- [JS Tricks](https://qishaoxuan.github.io/js_tricks/) - 常用 JS 方法总结
+- [Blog](https://qishaoxuan.github.io/blog/) - 日常学习记录
+- [wavejs](https://github.com/QiShaoXuan/wavejs) - 一个灵活的可配置的波浪动画

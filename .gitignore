@@ -19,3 +19,11 @@ yarn-error.log*
 
 # Raw chat style analysis and personal job-search notes stay local.
 /private/
+
+# Workspace build outputs
+dist/
+*.tsbuildinfo
+coverage/
+
+# Local release packages
+/.artifacts/

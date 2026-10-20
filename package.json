@@ -2,15 +2,39 @@
   "name": "resume",
   "version": "1.0.0",
   "description": "Resume of QiShaoXuan",
-  "main": "index.js",
   "scripts": {
-    "md2html": "node md2html.js"
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev --workspace @resume/web",
+    "dev:api": "npm run dev --workspace @resume/api",
+    "build": "npm run build --workspaces",
+    "build:web": "npm run build --workspace @resume/web",
+    "build:api": "npm run build --workspace @resume/api",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint apps scripts eslint.config.mjs",
+    "test": "npm run test --workspace @resume/api",
+    "start:api": "npm run start --workspace @resume/api",
+    "package:api": "node scripts/package-api.mjs"
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "fs-extra": "^11.1.1",
-    "prettier": "^3.0.3",
-    "showdown": "^2.1.0"
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/api"
+  ],
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.13.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2"
   }
 }
