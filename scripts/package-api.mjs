@@ -9,8 +9,8 @@ const [environment, commit, ...extra] = process.argv.slice(2);
 if (extra.length || !['prod', 'dev'].includes(environment) || !/^[a-f0-9]{40}$/.test(commit ?? '')) {
   throw new Error('Usage: package-api.mjs <prod|dev> <40-character commit>');
 }
-const run = (command, args, cwd) => {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
+const run = (command, args, cwd, env = process.env) => {
+  const result = spawnSync(command, args, { cwd, env, stdio: 'inherit' });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} exited with ${result.status}`);
 };
@@ -42,7 +42,8 @@ try {
   const artifacts = path.join(root, '.artifacts');
   await mkdir(artifacts, { recursive: true });
   const output = path.join(artifacts, 'api-release.tgz');
-  run('tar', ['-czf', output, '-C', temporary, 'package.json', 'package-lock.json', ...files, ...metadata], root);
+  // BSD tar otherwise adds AppleDouble files on macOS, which the server correctly rejects.
+  run('tar', ['-czf', output, '-C', temporary, 'package.json', 'package-lock.json', ...files, ...metadata], root, { ...process.env, COPYFILE_DISABLE: '1' });
   console.info(`API release: ${output}`);
   console.info(`Files: package.json, package-lock.json, ${files.join(', ')}`);
 } finally {

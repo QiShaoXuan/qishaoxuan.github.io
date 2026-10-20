@@ -210,7 +210,7 @@ with tarfile.open(archive, 'r:gz') as source:
     assert sum(member.size for member in members) <= 50*1024*1024, 'Archive is too large'
     for member in members:
         assert member.isfile() and member.size <= 10*1024*1024, 'Only bounded regular files are allowed'
-        assert re.fullmatch(r'[A-Za-z0-9_-]+\\.js|package\\.json|package-lock\\.json|version\\.json|release\\.env',member.name), 'Unexpected archive path'
+        assert re.fullmatch(r'[A-Za-z0-9_-]+\\.js|knowledge\\.generated\\.js|package\\.json|package-lock\\.json|version\\.json|release\\.env',member.name), 'Unexpected archive path'
     os.mkdir(release, 0o750)
     for member in members:
         with source.extractfile(member) as data, open(os.path.join(release,member.name),'xb') as output:
