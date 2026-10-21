@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createGithubLoader, selectRepositories } from '../src/github.js';
-import type { Message } from '../src/chat.js';
+import type { Message, Source } from '../src/chat.js';
+import { getKnowledgeSources } from '../src/prompts.js';
 import { deepseekProvider } from '../src/deepseek.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
@@ -85,7 +86,10 @@ test('only successfully fetched repos supplement system facts and completion/API
   }); t.after(() => app.close());
   const result = await app.inject({ method: 'POST', url: '/api/chat', payload: { messages: question() } });
   assert.equal(result.statusCode, 200); assert.equal(githubCalls, 2);
-  assert.equal(result.json().sources.length, 3); assert.equal(result.json().sources[2].url, `https://github.com/toeverything/AFFiNE/blob/${sha}/README.md`);
+  const sources: Source[] = result.json().sources;
+  assert.deepEqual(sources.filter((source) => !source.id.startsWith('github:')), getKnowledgeSources());
+  assert.equal(sources.filter((source) => source.id.startsWith('github:')).length, 1);
+  assert.equal(sources.find((source) => source.id === `github:toeverything/AFFiNE@${sha}`)?.url, `https://github.com/toeverything/AFFiNE/blob/${sha}/README.md`);
   for (const source of result.json().sources) {
     assert.ok(source.id.length <= 100); assert.ok(source.title.length <= 200); assert.ok(source.url === undefined || source.url.length <= 2048);
   }
