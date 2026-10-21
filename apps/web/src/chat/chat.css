@@ -56,7 +56,6 @@
 .chat-actions button:hover, .chat-actions button[aria-pressed='true'] { color: var(--ink); background: var(--hover); }
 .chat-thread { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 18px; overflow-y: auto; overscroll-behavior: contain; padding: 22px 19px 16px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .chat-welcome { margin: auto 0; padding: 14px 4px; text-align: left; }
-.chat-welcome-icon { display: inline-flex; justify-content: center; align-items: center; width: 37px; height: 37px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 16px; }
 .chat-welcome h3 { margin: 0 0 9px; font-size: 18px; font-weight: 500; letter-spacing: -.03em; }
 .chat-welcome p { margin: 0; font-size: 12px; color: var(--ink-2); line-height: 1.9; }
 .chat-suggestions { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; margin-top: 21px; }
@@ -118,3 +117,5 @@
 .chat-capacity-warning button, .chat-clear-confirm button { padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
 .chat-clear-confirm button:last-child { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 .beautiful-field textarea:disabled { cursor: not-allowed; opacity: .6; }
+
+.chat-privacy { flex-shrink: 0; margin: 6px 16px 0; color: var(--ink-3); font-size: 11px; line-height: 1.5; }

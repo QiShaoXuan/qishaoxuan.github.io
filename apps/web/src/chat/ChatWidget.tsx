@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowLeftStartOnRectangleIcon, ArrowRightStartOnRectangleIcon, ArrowsPointingOutIcon, ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { streamChat } from '../api';
+import { checkHealth, streamChat } from '../api';
 import { historyFor, startTurn } from './conversation';
 import type { Turn } from './conversation';
 import { atConversationCapacity, createConversationStorage, storageKey } from './storage';
@@ -22,6 +22,7 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
   mode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
 }) {
+  const [auditPolicy, setAuditPolicy] = useState<{ enabled: boolean; retentionDays: number }>();
   const [position, setPosition] = useState(() => initialPosition(viewport()));
   const [mobile, setMobile] = useState(() => window.innerWidth < 768);
   const [snap, setSnap] = useState<DockSide | null>(null);
@@ -56,6 +57,13 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    void checkHealth(controller.signal).then((health) => { if (!controller.signal.aborted) setAuditPolicy(health.audit); }).catch(() => {});
+    return () => controller.abort();
+  }, [open]);
 
   useEffect(() => {
     if (open) input.current?.focus();
@@ -251,13 +259,13 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
           </header>
           {confirmClear && <div className="chat-clear-confirm" role="alertdialog" aria-labelledby="chat-clear-title" aria-describedby="chat-clear-description">
             <h3 id="chat-clear-title">清空聊天记录</h3>
-            <p id="chat-clear-description">清空当前浏览器中的本环境聊天记录？清空后无法恢复。</p>
+            <p id="chat-clear-description">清空当前浏览器中的本环境聊天记录？清空后无法恢复。服务端脱敏记录会按留存期限自动删除。</p>
             {clearFailed && <p role="alert">清除失败，请检查浏览器存储权限后重试</p>}
             <div><button type="button" onClick={() => { setConfirmClear(false); setClearFailed(false); }}>取消</button><button type="button" onClick={clear}>确认清空</button></div>
           </div>}
           {(capacityLocked || sendCapacityExceeded) && <div className="chat-capacity-warning" role="alert"><p>{capacityLocked ? '聊天记录已达到 500 KiB 容量限制，继续聊天前请清除聊天缓存。已有记录会保留，清空后无法恢复。' : '发送本条消息将达到 500 KiB 容量限制，请缩短消息或清除聊天缓存。'}</p><button type="button" onClick={() => setConfirmClear(true)}>清除聊天缓存</button></div>}
           <div className="chat-thread" ref={thread} role="log" aria-label="聊天记录" aria-live="polite" aria-relevant="additions text">
-            {messages.length === 0 && <div className="chat-welcome"><span className="chat-welcome-icon"><ChatBubbleLeftRightIcon aria-hidden="true" /></span><h3>从一段对话开始</h3><p>工作经历、项目实践，或是协作方式，<br />你想先了解哪一部分？</p><div className="chat-suggestions">{['聊聊你的工作经历', '介绍一个代表项目', '你如何与团队协作？'].map((text) => <button key={text} type="button" disabled={capacityLocked} onClick={() => { void send(text); }}>{text}</button>)}</div></div>}
+            {messages.length === 0 && <div className="chat-welcome"><h3>从一段对话开始</h3><p>工作经历、项目实践，或是协作方式，<br />你想先了解哪一部分？</p><div className="chat-suggestions">{['聊聊你的工作经历', '介绍一个代表项目', '最近在字节跳动主要做什么？'].map((text) => <button key={text} type="button" disabled={capacityLocked} onClick={() => { void send(text); }}>{text}</button>)}</div></div>}
             {messages.map((turn) => <div key={turn.id} className="chat-turn">
               <div className="beautiful-message" data-role="user"><p>{turn.user}</p></div>
               {(turn.assistant || turn.status === 'interrupted' || turn.status === 'error') && <div className="beautiful-message" data-role="assistant">
@@ -269,6 +277,7 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
             {!capacityLocked && request.state === 'idle' && ['interrupted', 'error'].includes(messages.at(-1)?.status ?? '') && <div className="chat-error" role="status"><p>上次回复已中断，可以重新发送。</p><button type="button" onClick={() => { void send(messages.at(-1)!.user, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
             {!capacityLocked && request.state === 'error' && <div className="chat-error" role="status"><p>{request.message}</p><button type="button" onClick={() => { void send(request.content, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
           </div>
+          <p className="chat-privacy">{auditPolicy?.enabled ? `问答经自动脱敏后保存，最多 ${auditPolicy.retentionDays} 天。` : '问答可能经自动脱敏后保存，最多 7 天。'}请勿输入敏感信息。</p>
           <ChatComposer draft={draft} onDraftChange={(value) => { setDraft(value); setSendCapacityExceeded(false); }} pending={request.state === 'pending'} disabled={capacityLocked} onSend={() => { void send(draft); }} onCancel={stop} inputRef={input} />
           {storageUnavailable && <p className="chat-disclaimer" role="status">本地存储不可用，当前对话仅在内存中保留。</p>}
           <p className="chat-disclaimer">当前模型：deepseek-flash</p>

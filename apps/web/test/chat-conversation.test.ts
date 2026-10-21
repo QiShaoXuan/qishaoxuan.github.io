@@ -13,12 +13,12 @@ test('上下文仅包含完整轮次；失败、停止和重试不重复用户�
   assert.deepEqual(historyFor(turns, interrupted.user), [{ role: 'user', content: '问题0' }, { role: 'assistant', content: '回答0' }, { role: 'user', content: '未完成问题' }]);
   assert.equal(historyFor([{ ...interrupted, status: 'error' }], '新问题').length, 1);
 });
-test('按完整轮次裁剪数量和16k字符，始终以 user 结尾并交替', () => {
+test('按完整轮次裁剪数量和32768字符，始终以 user 结尾并交替', () => {
   const history = historyFor(Array.from({ length: 15 }, (_, id) => complete(id)), '最新');
   assert.equal(history.length, 19); assert.equal(history[0]?.content, '问题6');
   assert.equal(history.at(-1)?.role, 'user');
   history.forEach((item, index) => assert.equal(item.role, index % 2 ? 'assistant' : 'user'));
-  const large = { ...complete(1), assistant: 'a'.repeat(15_999) };
+  const large = { ...complete(1), assistant: 'a'.repeat(16385) };
   assert.deepEqual(historyFor([complete(0), large], '新问题'), [{ role: 'user', content: '新问题' }]);
   assert.throws(() => historyFor([], 'x'.repeat(4001)));
 });
@@ -43,7 +43,13 @@ test('storage 禁用/quota 降级，损坏恢复；清空移除记录，namespac
 });
 
 test('长回复按整轮裁剪，达到长度上限的回复不进入上下文', () => {
-  assert.deepEqual(historyFor([complete(0), { ...complete(1), assistant: 'a'.repeat(4001) }], '下一轮'), [{ role: 'user', content: '下一轮' }]);
+  const detailed = { ...complete(1), assistant: '详'.repeat(5000) };
+  assert.deepEqual(historyFor([complete(0), detailed], '下一轮'), [
+    { role: 'user', content: '问题0' }, { role: 'assistant', content: '回答0' },
+    { role: 'user', content: detailed.user }, { role: 'assistant', content: detailed.assistant },
+    { role: 'user', content: '下一轮' },
+  ]);
+  assert.deepEqual(historyFor([{ ...complete(1), assistant: 'a'.repeat(16385) }], '下一轮'), [{ role: 'user', content: '下一轮' }]);
   assert.deepEqual(historyFor([{ ...complete(0), finishReason: 'length' }], '下一轮'), [{ role: 'user', content: '下一轮' }]);
   assert.throws(() => decodeConversation(encode([{ ...complete(0), finishReason: 'length' }])));
 });
@@ -162,13 +168,13 @@ test('来源链接存储校验与SSE保持同一HTTPS GitHub边界', () => {
   assert.throws(() => decodeConversation(encode([{ ...complete(1), sources: [{ ...source, unexpected: true }] }])));
 });
 
-test('16k上下文预算按完整pair截断，已保存记录保持完整', () => {
-  const turns = Array.from({ length: 4 }, (_, id): Turn => ({ id, user: 'u'.repeat(2000), assistant: 'a'.repeat(2000), status: 'complete' }));
+test('32768字符上下文预算按完整pair截断，已保存记录保持完整', () => {
+  const turns = Array.from({ length: 5 }, (_, id): Turn => ({ id, user: 'u'.repeat(2000), assistant: 'a'.repeat(6000), status: 'complete' }));
   const history = historyFor(turns, 'x');
-  assert.equal(history.length, 7);
-  assert.equal(history.reduce((sum, item) => sum + item.content.length, 0), 12001);
-  assert.equal(turns.length, 4);
-  assert.equal(decodeConversation(encode(turns)).length, 4);
+  assert.equal(history.length, 9);
+  assert.equal(history.reduce((sum, item) => sum + item.content.length, 0), 32001);
+  assert.equal(turns.length, 5);
+  assert.equal(decodeConversation(encode(turns)).length, 5);
 });
 
 test('已持久化记录remove失败时不解锁、不覆盖旧raw；重试成功才清除', () => {
