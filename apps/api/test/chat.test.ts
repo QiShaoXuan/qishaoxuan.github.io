@@ -57,9 +57,56 @@ test('DeepSeek fake HTTP preserves history, sends server system and strips reaso
   assert.equal(response.json().mode, 'deepseek');
   assert.deepEqual((sent.messages as unknown[]).slice(1), messages);
   assert.equal((sent.messages as { role: string }[])[0]?.role, 'system');
-  assert.deepEqual(sent.thinking, { type: 'disabled' });
+  assert.deepEqual(sent.thinking, { type: 'enabled' });
+  assert.equal(sent.temperature, undefined);
   assert.equal(sent.max_tokens, 1024);
   assert.ok(!response.body.includes('private-thought'));
+});
+
+test('thinking stream forwards only final answer and never logs reasoning', async (t) => {
+  let logs = '';
+  const logStream = new Writable({ write(chunk, _encoding, callback) { logs += String(chunk); callback(); } });
+  const body = frame({ choices: [{ delta: { reasoning_content: 'private-reasoning-marker', content: null } }] }) + complete;
+  const app = await buildApp(deepConfig(), { logStream, fetch: async () => new Response(body) }); t.after(() => app.close());
+  const response = await app.inject({ method: 'POST', url: '/api/chat', headers: { accept: 'text/event-stream' }, payload });
+  assert.match(response.body, /event: delta\ndata: {"content":"你好"}/);
+  assert.match(response.body, /event: done/);
+  assert.ok(!response.body.includes('private-reasoning-marker'));
+  assert.ok(!logs.includes('private-reasoning-marker'));
+});
+
+test('Pro keeps its nonthinking request settings', async () => {
+  let sent: Record<string, unknown> = {};
+  const provider = deepseekProvider({ ...deepConfig().chat, model: 'deepseek-v4-pro' }, async (_url, init) => {
+    sent = JSON.parse(String(init?.body));
+    return new Response(complete);
+  });
+  for await (const text of provider.stream(payload.messages, new AbortController().signal)) assert.equal(text, '你好');
+  assert.deepEqual(sent.thinking, { type: 'disabled' });
+  assert.equal(sent.temperature, 0.3);
+});
+
+test('disconnect during thinking aborts the upstream before any answer is emitted', async (t) => {
+  let aborted = false, cancelled = false;
+  let started!: () => void;
+  const thinkingStarted = new Promise<void>((resolve) => { started = resolve; });
+  const app = await buildApp(deepConfig(), { fetch: async (_url, init) => {
+    init!.signal!.addEventListener('abort', () => { aborted = true; }, { once: true });
+    return new Response(new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode(frame({ choices: [{ delta: { reasoning_content: 'private-only-thinking' } }] }))); started(); },
+      cancel() { cancelled = true; },
+    }));
+  } });
+  await app.listen({ host: '127.0.0.1', port: 0 }); t.after(() => app.close());
+  const controller = new AbortController();
+  const response = await fetch(`http://127.0.0.1:${(app.server.address() as AddressInfo).port}/api/chat`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'text/event-stream' }, body: JSON.stringify(payload), signal: controller.signal });
+  const first = await response.body!.getReader().read();
+  assert.match(new TextDecoder().decode(first.value), /event: meta/);
+  await thinkingStarted;
+  controller.abort();
+  for (let i = 0; i < 30 && !(aborted && cancelled); i++) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(aborted, true);
+  assert.equal(cancelled, true);
 });
 
 test('upstream failures and incomplete streams never emit done', async (t) => {

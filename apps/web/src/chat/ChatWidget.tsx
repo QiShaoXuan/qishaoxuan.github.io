@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeftStartOnRectangleIcon, ArrowRightStartOnRectangleIcon, ArrowsPointingOutIcon, ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, SparklesIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftStartOnRectangleIcon, ArrowRightStartOnRectangleIcon, ArrowsPointingOutIcon, ChatBubbleLeftRightIcon, XMarkIcon, ArrowPathIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { streamChat } from '../api';
 import { historyFor, startTurn } from './conversation';
 import type { Turn } from './conversation';
@@ -237,7 +237,7 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
           else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         }} className="chat-panel" data-mode={mode} data-dragging={dragging || undefined} style={mode === 'floating' && !mobile ? { left: position.x, top: position.y } : undefined}>
           <header className="chat-header" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={(event) => endDrag(event)} onPointerCancel={(event) => endDrag(event, true)} onLostPointerCapture={(event) => endDrag(event, true)}>
-            <div className="chat-heading"><SparklesIcon aria-hidden="true" /><div><h2 id="chat-title">AI 简历助手</h2><span>基于公开简历与项目资料回答</span></div></div>
+            <div className="chat-heading"><h2 id="chat-title">AI 简历助手</h2></div>
             <div className="chat-actions">
               {!mobile && <>
                 <button type="button" onClick={() => changeMode('left')} title="停靠左侧" aria-label="停靠左侧" aria-pressed={mode === 'left'}><ArrowLeftStartOnRectangleIcon aria-hidden="true" /></button>
@@ -247,6 +247,7 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
               <button type="button" onClick={() => setConfirmClear(true)} title="清空对话" aria-label="清空对话"><TrashIcon aria-hidden="true" /></button>
               <button type="button" onClick={close} title="关闭聊天" aria-label="关闭聊天"><XMarkIcon aria-hidden="true" /></button>
             </div>
+            <p className="chat-description">基于公开简历与项目资料回答</p>
           </header>
           {confirmClear && <div className="chat-clear-confirm" role="alertdialog" aria-labelledby="chat-clear-title" aria-describedby="chat-clear-description">
             <h3 id="chat-clear-title">清空聊天记录</h3>
@@ -258,8 +259,11 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
           <div className="chat-thread" ref={thread} role="log" aria-label="聊天记录" aria-live="polite" aria-relevant="additions text">
             {messages.length === 0 && <div className="chat-welcome"><span className="chat-welcome-icon"><ChatBubbleLeftRightIcon aria-hidden="true" /></span><h3>从一段对话开始</h3><p>工作经历、项目实践，或是协作方式，<br />你想先了解哪一部分？</p><div className="chat-suggestions">{['聊聊你的工作经历', '介绍一个代表项目', '你如何与团队协作？'].map((text) => <button key={text} type="button" disabled={capacityLocked} onClick={() => { void send(text); }}>{text}</button>)}</div></div>}
             {messages.map((turn) => <div key={turn.id} className="chat-turn">
-              <div className="beautiful-message" data-role="user"><span className="chat-message-label">你</span><p>{turn.user}</p></div>
-              {(turn.assistant || turn.status === 'interrupted' || turn.status === 'error') && <div className="beautiful-message" data-role="assistant"><span className="chat-message-label">{turn.mode === 'mock' ? '演示回复' : 'AI 回复'}{turn.finishReason === 'length' ? ' · 达到长度上限' : turn.status === 'interrupted' ? ' · 已停止 / 中断' : turn.status === 'error' ? ' · 未完成' : ''}</span><p>{turn.assistant || '未生成回复。'}</p>{turn.status === 'complete' && !!turn.sources?.length && <p className="chat-sources">参考：{turn.sources.map((source, index) => <span key={source.id}>{index > 0 && '、'}{source.url ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> : source.title}</span>)}</p>}</div>}
+              <div className="beautiful-message" data-role="user"><p>{turn.user}</p></div>
+              {(turn.assistant || turn.status === 'interrupted' || turn.status === 'error') && <div className="beautiful-message" data-role="assistant">
+                {(turn.finishReason === 'length' || turn.status === 'interrupted' || turn.status === 'error') && <span className="chat-message-status">{turn.finishReason === 'length' ? '达到长度上限' : turn.status === 'interrupted' ? '已停止 / 中断' : '未完成'}</span>}
+                <p>{turn.assistant || '未生成回复。'}</p>{turn.status === 'complete' && !!turn.sources?.length && <p className="chat-sources">参考：{turn.sources.map((source, index) => <span key={source.id}>{index > 0 && '、'}{source.url ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> : source.title}</span>)}</p>}
+              </div>}
             </div>)}
             {request.state === 'pending' && <ThinkingState generating={request.generating} />}
             {!capacityLocked && request.state === 'idle' && ['interrupted', 'error'].includes(messages.at(-1)?.status ?? '') && <div className="chat-error" role="status"><p>上次回复已中断，可以重新发送。</p><button type="button" onClick={() => { void send(messages.at(-1)!.user, true); }}><ArrowPathIcon aria-hidden="true" />重新发送</button></div>}
@@ -267,7 +271,7 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
           </div>
           <ChatComposer draft={draft} onDraftChange={(value) => { setDraft(value); setSendCapacityExceeded(false); }} pending={request.state === 'pending'} disabled={capacityLocked} onSend={() => { void send(draft); }} onCancel={stop} inputRef={input} />
           {storageUnavailable && <p className="chat-disclaimer" role="status">本地存储不可用，当前对话仅在内存中保留。</p>}
-          <p className="chat-disclaimer">当前对话使用 deepseek。 AI 可能出错，可以和本人聊聊～</p>
+          <p className="chat-disclaimer">当前模型：deepseek-flash</p>
         </section>
       </>}
     </>

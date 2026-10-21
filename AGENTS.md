@@ -4,6 +4,7 @@
 - 最新简历事实以根目录 `readme.md` 为唯一来源；经本人确认的 `docs/knowledge/affine.md` 与已脱敏的 `docs/knowledge/bytedance.md` 补充项目实现、选型和个人过程，不能覆盖简历的任职时间或扩大职责；具体贡献按项目资料中更明确且不扩大的边界回答。项目运行与配置说明见 `PROJECT.md`，部署操作见 `deploy/README.md`。不要恢复已删除的旧简历、导航页和转换工具。
 - `master` 发布正式环境：Pages 根路径、ECS `/api`、回环端口 3000、用户 `resume`；`develop` 发布开发环境：Pages `/dev/`、ECS `/dev/api`、回环端口 3100、用户 `resume-dev`。两环境线上均使用 `NODE_ENV=production`，`RELEASE_COMMIT` 和 `DEPLOY_ENV=prod|dev` 标识版本。前端基于 Kami resume 模板，使用 Heroicons 与 Beautiful UI 聊天组件，视觉约定见 `DESIGN.md`。聊天支持浮窗拖动、左右全高停靠并给正文让出空间，手机全屏；默认 Mock，可配置 DeepSeek SSE；线上版本与模型启用状态以实际发布及服务端配置为准。
 - 简历直接读取根目录 `readme.md`，不得额外维护一份事实副本。字体按用户要求优先使用系统苹方（PingFang SC），无苹方的设备回退到系统无衬线；不打包字体文件。间距参考 Kami `demo-musk-resume.pdf`，保留第三方许可声明。
+- 静态 PDF 由同一个 `ResumePage` 渲染，下载名称为 `齐少轩的简历.pdf`。`npm run dev` 监听 README / 排版并生成；单独修改后执行 `npm run resume:sync`，将 `apps/web/public/resume.pdf` 与 `apps/web/src/resume/pdf-metadata.json` 一起更新。前端 prebuild 校验来源与产物哈希，禁止绕过过期检查。Playwright / pdf-lib 仅为本地导出依赖，CI 不生成 PDF，ECS 与前端不引入浏览器运行时；排版修改需核验 PDF 全部页面。
 - `private/` 仅供本地整理原始聊天风格和私人求职资料，已被 Git 忽略；不得提交、上传或打包进公开静态产物。需先整理允许公开回答的内容，再接入服务端。
 - 模型密钥、SSH 私钥和 TLS 私钥不进入前端或 Git；ECS 配置与验证记录见 `deploy/README.md`。
 - Git 操作优先使用本机 Git；后续阿里云服务器管理、部署和排障仅通过 IAB 浏览器中的 ECS 云助手，不再使用 SSH / SCP，也不因本机出口 IP 变化调整 SSH 白名单。应用操作分别以 `resume` / `resume-dev` 执行；仅首次通过 `root` 云助手运行 `deploy/setup-environments.sh` 初始化双环境。后续 Actions 通过 OIDC 临时凭证与各自 RAM 角色部署，不使用长期访问密钥。

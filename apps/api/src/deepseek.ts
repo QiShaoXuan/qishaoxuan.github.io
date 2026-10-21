@@ -9,10 +9,11 @@ export function deepseekProvider(config: ApiConfig['chat'], fetcher: typeof fetc
     async *stream(messages, signal) {
       const context = githubLoader ? await githubLoader(messages, signal) : undefined;
       signal.throwIfAborted();
+      const thinking = config.model === 'deepseek-flash';
       const response = await fetcher('https://api.deepseek.com/chat/completions', {
         method: 'POST', signal,
         headers: { 'content-type': 'application/json', authorization: `Bearer ${config.apiKey}` },
-        body: JSON.stringify({ model: config.model, messages: [{ role: 'system', content: buildSystemPrompt(context) }, ...messages], thinking: { type: 'disabled' }, stream: true, stream_options: { include_usage: true }, max_tokens: config.maxTokens, temperature: 0.3 }),
+        body: JSON.stringify({ model: config.model, messages: [{ role: 'system', content: buildSystemPrompt(context) }, ...messages], thinking: { type: thinking ? 'enabled' : 'disabled' }, stream: true, stream_options: { include_usage: true }, max_tokens: config.maxTokens, ...(!thinking ? { temperature: 0.3 } : {}) }),
       });
       if (!response.ok || !response.body) {
         await response.body?.cancel();

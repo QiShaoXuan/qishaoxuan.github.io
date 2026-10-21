@@ -25,7 +25,7 @@ npm ci
 npm run dev
 ```
 
-打开 `http://127.0.0.1:8080` 查看简历，点击右下角聊天入口测试聊天收发（默认 Mock）。前端经 Vite 代理连接本机 API，API 默认监听 `127.0.0.1:3000`。Ctrl+C 同时停止两项服务，启动器面向 macOS / Linux。
+打开 `http://127.0.0.1:8080` 查看简历，点击右下角聊天入口测试聊天收发（默认 Mock）。前端经 Vite 代理连接本机 API，API 默认监听 `127.0.0.1:3000`。启动器同时监听简历与排版变更，更新静态 PDF；Ctrl+C 停止服务和监听器，启动器面向 macOS / Linux。
 
 | 命令 | 用途 |
 | --- | --- |
@@ -34,10 +34,25 @@ npm run dev
 | `npm run build` | 构建两端，产物分别位于各应用的 `dist/` |
 | `npm run build:web` / `npm run build:api` | 单独构建前端 / API |
 | `npm run start:api` | 运行已编译 API |
+| `npm run resume:sync` / `npm run resume:check` | 本地生成 PDF / 检查静态 PDF 是否与简历和排版一致 |
+
+## 简历、网页与 PDF 同步
+
+只在根目录 `readme.md` 修改简历事实。网页的 `ResumePage` 直接解析该文件；PDF 导出也渲染同一个 React 组件，使用同一组样式的打印规则，不另维护内容模板。右上角仅显示下载图标，下载静态 `resume.pdf`，保存名称为 `齐少轩的简历.pdf`。
+
+运行 `npm run dev` 时，保存 README 或排版文件后会自动重建 PDF。未启动完整开发环境时，修改后执行 `npm run resume:sync`。生成工具要求本机可用 Chrome（macOS）或 Playwright Chromium（其他系统可先执行 `npx playwright install chromium`）；字体来自本机系统，当前 PDF 使用苹方，不在仓库分发字体文件。
+
+PDF 及版本元数据分别保存在 `apps/web/public/resume.pdf`、`apps/web/src/resume/pdf-metadata.json`。后续提交内容变更时，应同时包含这两个生成文件。生成器对 README、组件、样式、Vite 配置、依赖锁和生成脚本计算哈希；前端构建先检查来源和 PDF 哈希，过期、缺失或被替换时拒绝构建。检查通过并不表示外观已经核验，调整排版后仍需查看所有 PDF 页面。
+
+Playwright、pdf-lib 仅用于本地导出。CI 检查已生成的 PDF，不启动浏览器；Pages 发布静态资源，ECS 和访客浏览器均不生成 PDF。下载链接使用 Vite base，兼容正式根路径和 `/dev/`，并携带内容版本避免沿用旧缓存。macOS 导出的中文文本映射会作定向修复，使姓名可正确搜索和复制，不修改视觉字形。PDF 与元数据先写临时文件再替换；跨进程锁阻止监听器和手动导出同时覆盖，异常强制终止留下锁时会明确报错，不自动抢占。
+
+当前 AI 安全审查结果及验证边界见 [安全审查记录](docs/security-review.md)。
 
 当前前端基于 Kami resume 模板展示完整简历，直接读取根目录 `readme.md`。聊天默认收起于右下角，桌面支持拖动浮窗、边缘吸附、左右全高停靠并给正文让出空间；手机使用全屏面板。聊天记录保存在浏览器 localStorage，保留 7 天并按环境命名空间区分；同源的正式与开发路径并非安全隔离。按序列化 UTF-8 大小计，记录达到 500 KiB 后保留原内容并禁止继续发送，提示清除聊天缓存；超限原始记录即使无法恢复也不会被自动覆盖或按普通损坏数据删除，需手动确认清理；清空前需确认，只删除当前环境的对话。记录保存与模型上下文窗口分别控制，不再为控制缓存大小静默删除旧轮次。支持取消流式生成；取消或异常中断的不完整回复不作为后续模型历史。
 
 图标使用 Heroicons，聊天输入与等待状态改编自 Beautiful UI。默认 `API_CHAT_MODE=mock` 不调用模型；`deepseek` 模式启用服务端 DeepSeek 流式问答。本地已完成真实模型与浏览器链路验证；线上是否调用真实模型取决于各环境服务端配置，不能以代码合并或部署成功代替模型验证。真实模型付费 smoke 的结果单独记录，不以 Mock 或部署探针通过代替。视觉规则和上游版本见 [DESIGN.md](DESIGN.md)，开源许可随构建发布在 `/THIRD_PARTY_NOTICES.txt`。
+
+`deepseek-flash` 请求开启思考模式，使用供应商默认思考强度；不发送该模式下无效的 temperature。服务端仅向访客转发最终回答，推理内容不进入前端、历史或运行日志；思考阶段仍支持超时和停止生成。`deepseek-v4-pro` 保持原有非思考模式。底部模型名称目前为固定展示，不代表运行时模型发现；若切换模型，需同步更新界面。供应商参数依据 [DeepSeek 思考模式文档](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/)。
 
 页面优先使用系统苹方（PingFang SC），无苹方的设备回退到系统无衬线字体，不打包或请求字体文件。块间距与行距参考 [Kami 示例简历](https://kami.tw93.fun/assets/demos/demo-musk-resume.pdf)：正文行高 1.45，章节上间距 28px（手机 24px）、标题下间距 10px、段落间距 6px、项目上下内边距各 12px。
 
