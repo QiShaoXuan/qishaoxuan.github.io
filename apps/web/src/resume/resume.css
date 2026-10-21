@@ -311,9 +311,37 @@
   .resume-document .metric-label { font-size: 12px; }
 }
 
+@page { size: A4; margin: 14mm; }
 @media print {
-  .resume-document { max-width: none; padding: 0; font-size: 11pt; background: white; }
-  .resume-document .header { margin-top: 0; }
+  .resume-document { max-width: none; padding: 0; font-size: 9.2pt; line-height: 1.45; background: white; }
+  .resume-document .header { margin: 0 0 4mm; padding-bottom: 2mm; flex-wrap: nowrap; }
+  .resume-document .document-label { font-size: 7pt; margin-bottom: 1.5mm; }
+  .resume-document .name { font-size: 26.5pt; }
+  .resume-document .tagline { font-size: 9.5pt; margin-top: 1mm; }
+  .resume-document .contact { font-size: 8.5pt; gap: 0.5mm; }
+  .resume-document .contact svg { width: 10pt; height: 10pt; flex-basis: 10pt; }
+  .resume-document .metrics { margin-bottom: 4mm; gap: 5mm; }
+  .resume-document .metric { gap: 1mm; }
+  .resume-document .metric-value { font-size: 16pt; }
+  .resume-document .metric-value .unit { font-size: 9pt; }
+  .resume-document .metric-label { font-size: 8pt; }
+  .resume-document .section-title { font-size: 12.5pt; margin: 4mm 0 1.7mm; padding-bottom: 1mm; }
+  .resume-document .summary { font-size: 9.2pt; }
+  .resume-document p + p { margin-top: 1.5mm; }
+  .resume-document li { margin-top: 1.5mm; }
+  .resume-document li li { margin-top: 1mm; }
+  .resume-document li > p { break-inside: avoid; }
+  .resume-document .timeline { gap: 0; }
+  .resume-document .tl-step { padding: 1mm 0; }
+  .resume-document .tl-top { grid-template-columns: 38mm minmax(0, 1fr); gap: 5mm; }
+  .resume-document .tl-year { font-size: 8.5pt; }
+  .resume-document .tl-head { font-size: 9pt; }
+  .resume-document .project { padding: 2mm 0; }
+  .resume-document .proj-head { margin-bottom: 1.5mm; }
+  .resume-document .proj-name { font-size: 11pt; }
+  .resume-document .proj-date { font-size: 8.5pt; }
+  .resume-document .project > ul, .resume-document .project > ol { margin-top: 1.7mm; }
   .resume-document .section-title, .resume-document .proj-head { break-after: avoid; }
+  .resume-document .personal-projects li { padding: 1mm 0; }
   .resume-document a { color: inherit; }
 }

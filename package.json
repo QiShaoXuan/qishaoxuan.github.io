@@ -14,7 +14,9 @@
     "test": "npm run test --workspaces && npm run test:deploy",
     "test:deploy": "node --test scripts/test-*.mjs",
     "start:api": "npm run start --workspace @resume/api",
-    "package:api": "node scripts/package-api.mjs"
+    "package:api": "node scripts/package-api.mjs",
+    "resume:sync": "node scripts/resume-pdf.mjs",
+    "resume:check": "node scripts/resume-pdf.mjs --check"
   },
   "author": "",
   "license": "ISC",
@@ -34,6 +36,8 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.7",
     "globals": "17.13.0",
+    "pdf-lib": "1.17.1",
+    "playwright": "1.64.1",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2"

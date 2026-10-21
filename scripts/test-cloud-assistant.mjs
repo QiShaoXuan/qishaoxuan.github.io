@@ -88,14 +88,15 @@ test('polling deadline is bounded when instance never completes', async () => {
   assert.ok(clock <= 33_000);
 });
 
-function publicFetch(healthOverrides = {}, cors = true) {
+function publicFetch(healthOverrides = {}, cors = true, chatStatus = 400, chatCode = 'INVALID_REQUEST') {
   const requests = [];
   const fetch = async (url, init) => {
     requests.push({ url, init });
     if (url.endsWith('/health')) return new Response(JSON.stringify({ status: 'ok', service: 'resume-api', commit, environment: 'dev', ...healthOverrides }));
     const headers = cors ? { 'access-control-allow-origin': 'https://qishaoxuan.github.io', 'access-control-allow-methods': 'GET, HEAD, POST', 'access-control-allow-headers': 'content-type' } : {};
     if (init.method === 'OPTIONS') return new Response(null, { status: 204, headers });
-    return new Response(JSON.stringify({ mode: 'mock', message: { role: 'assistant', content: 'test reply' } }), { headers });
+    assert.deepEqual(JSON.parse(init.body), { messages: [] }, 'deployment must not submit billable chat input');
+    return new Response(JSON.stringify({ code: chatCode, message: 'invalid request' }), { status: chatStatus, headers });
   };
   return { fetch, requests };
 }
@@ -106,14 +107,19 @@ test('public verification rejects wrong commit/environment before any chat reque
     assert.equal(client.requests.length, 1);
   }
 });
-test('public verification checks mock chat and CORS without redirect or TLS bypass', async () => {
+test('public verification checks nonbillable invalid chat and CORS without redirect or TLS bypass', async () => {
   const client = publicFetch();
   await verifyPublicApi(target, client);
   assert.equal(client.requests.length, 3);
   assert.ok(client.requests.every(({ url, init }) => url.startsWith(target.api) && init.redirect === 'error' && init.signal instanceof AbortSignal));
   assert.equal(client.requests[1].init.method, 'POST');
+  assert.deepEqual(JSON.parse(client.requests[1].init.body), { messages: [] });
   assert.equal(client.requests[2].init.method, 'OPTIONS');
   await assert.rejects(verifyPublicApi(target, publicFetch({}, false)), /CORS/);
+});
+test('public verification rejects successful chat and wrong validation code', async () => {
+  await assert.rejects(verifyPublicApi(target, publicFetch({}, true, 200)), /invalid chat request/);
+  await assert.rejects(verifyPublicApi(target, publicFetch({}, true, 400, 'OTHER_ERROR')), /validation response/);
 });
 test('release shell validates checksums and archive before extracting into a new version', () => {
   const command = prepareReleaseCommand(target, 'b'.repeat(64), 'c'.repeat(64));
@@ -126,11 +132,11 @@ test('release shell validates checksums and archive before extracting into a new
   assert.ok(encodeCommand(command).length < COMMAND_LIMIT);
 });
 
-test('real archive validator rejects traversal, links and duplicate members before extraction', async () => {
+test('real archive validator accepts generated knowledge and rejects unsafe paths before extraction', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'resume-upload-test-'));
   const validator = prepareReleaseCommand(target, 'b'.repeat(64), 'c'.repeat(64)).split("<<'PYTHON'\n")[1].split('\nPYTHON')[0];
   try {
-    for (const attack of ['traversal', 'symlink', 'duplicate', 'absolute', 'valid']) {
+    for (const attack of ['traversal', 'symlink', 'duplicate', 'absolute', 'nested', 'unexpected-dot', 'apple-double', 'valid']) {
       const archive = path.join(directory, `${attack}.tgz`);
       const release = path.join(directory, attack);
       const fixture = spawnSync('python3', ['-c', `import io,tarfile,sys
@@ -141,6 +147,10 @@ with tarfile.open(sys.argv[1], 'w:gz') as archive:
     if attack=='absolute': names+=['/tmp/escape.js']
     if attack=='duplicate': names+=['server.js']
     if attack=='symlink': names+=['link.js']
+    if attack=='nested': names+=['nested/knowledge.generated.js']
+    if attack=='unexpected-dot': names+=['knowledge..generated.js']
+    if attack=='apple-double': names+=['._knowledge.generated.js']
+    if attack=='valid': names+=['knowledge.generated.js']
     for name in names:
         item=tarfile.TarInfo(name)
         if name=='link.js':

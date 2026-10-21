@@ -1,8 +1,10 @@
 import { resolveApiUrl } from './api-url';
 
-type Health = { status: 'ok'; service: string };
+import { createChatParser } from './chat/stream';
+import type { ChatEvent } from './chat/stream';
+import type { HistoryMessage } from './chat/conversation';
 
-type MockReply = { mode: 'mock'; message: { role: 'assistant'; content: string } };
+type Health = { status: 'ok'; service: string };
 
 function apiUrl(path: '/api/health' | '/api/chat'): string {
   const configured = import.meta.env.VITE_API_BASE_URL?.trim();
@@ -24,26 +26,52 @@ export async function checkHealth(signal: AbortSignal): Promise<Health> {
   return { status: 'ok', service: result.service };
 }
 
-export async function sendMockMessage(content: string, signal: AbortSignal): Promise<MockReply> {
-  const message = content.trim();
-  if (!message || content.length > 4_000) throw new Error('请输入 1 至 4000 字的测试内容。');
-  const response = await fetch(apiUrl('/api/chat'), {
-    method: 'POST',
-    signal,
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: message }] }),
-  });
-  if (!response.ok) throw new Error('测试请求失败，请稍后重试。');
-  const result: unknown = await response.json();
-  if (
-    typeof result !== 'object' || result === null ||
-    !('mode' in result) || result.mode !== 'mock' ||
-    !('message' in result) || typeof result.message !== 'object' || result.message === null ||
-    !('role' in result.message) || result.message.role !== 'assistant' ||
-    !('content' in result.message) || typeof result.message.content !== 'string' ||
-    !result.message.content.trim()
-  ) {
-    throw new Error('测试响应格式不符合预期。');
+export async function streamChat(messages: HistoryMessage[], signal: AbortSignal, onEvent: (event: ChatEvent) => void): Promise<void> {
+  const controller = new AbortController();
+  let timedOut = false;
+  let requestId: string | null = null;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  const abort = () => controller.abort();
+  const expire = () => { timedOut = true; controller.abort(); };
+  const total = window.setTimeout(expire, 60_000);
+  let idle = window.setTimeout(expire, 30_000);
+  signal.addEventListener('abort', abort, { once: true });
+  if (signal.aborted) controller.abort();
+  try {
+    const response = await fetch(apiUrl('/api/chat'), {
+      method: 'POST', signal: controller.signal,
+      headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages }),
+    });
+    requestId = response.headers.get('X-Request-Id');
+    if (!response.ok) throw new Error(response.status === 429 ? '请求过于频繁，请稍后再试。' : '暂时无法回复，请稍后重试。');
+    if (!response.headers.get('Content-Type')?.toLowerCase().startsWith('text/event-stream') || !response.body) throw new Error('服务未返回有效的流式回复。');
+    const parser = createChatParser((event) => {
+      if (controller.signal.aborted) return;
+      if (event.type === 'error') throw new Error(event.message);
+      onEvent(event);
+    });
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    reader = response.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (controller.signal.aborted) throw new Error('已停止本次回复。');
+      window.clearTimeout(idle);
+      idle = window.setTimeout(expire, 30_000);
+      if (done) break;
+      parser.push(decoder.decode(value, { stream: true }));
+    }
+    parser.push(decoder.decode());
+    parser.finish();
+  } catch (error) {
+    if (timedOut) throw new Error('回复超时，请重试。', { cause: error });
+    if (signal.aborted) throw new Error('已停止本次回复。', { cause: error });
+    const message = error instanceof Error ? error.message : '连接中断，请重试。';
+    throw new Error(`${message}${requestId && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId) ? `（请求编号：${requestId}）` : ''}`, { cause: error });
+  } finally {
+    window.clearTimeout(total); window.clearTimeout(idle);
+    signal.removeEventListener('abort', abort);
+    controller.abort();
+    await reader?.cancel().catch(() => undefined);
   }
-  return { mode: 'mock', message: { role: 'assistant', content: result.message.content } };
 }

@@ -7,6 +7,7 @@ const children = ['@resume/web', '@resume/api'].map((workspace) =>
     detached: true,
   }),
 );
+children.push(spawn(process.execPath, ['scripts/resume-pdf.mjs', '--watch'], { stdio: 'inherit', detached: true }));
 let stopping = false;
 let killTimer;
 let groupCheck;

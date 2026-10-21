@@ -27,3 +27,6 @@ coverage/
 
 # Local release packages
 /.artifacts/
+
+# Generated from the public resume and approved project knowledge before API dev/build/checks.
+/apps/api/src/knowledge.generated.ts

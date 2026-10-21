@@ -210,7 +210,7 @@ with tarfile.open(archive, 'r:gz') as source:
     assert sum(member.size for member in members) <= 50*1024*1024, 'Archive is too large'
     for member in members:
         assert member.isfile() and member.size <= 10*1024*1024, 'Only bounded regular files are allowed'
-        assert re.fullmatch(r'[A-Za-z0-9_-]+\\.js|package\\.json|package-lock\\.json|version\\.json|release\\.env',member.name), 'Unexpected archive path'
+        assert re.fullmatch(r'[A-Za-z0-9_-]+\\.js|knowledge\\.generated\\.js|package\\.json|package-lock\\.json|version\\.json|release\\.env',member.name), 'Unexpected archive path'
     os.mkdir(release, 0o750)
     for member in members:
         with source.extractfile(member) as data, open(os.path.join(release,member.name),'xb') as output:
@@ -234,10 +234,10 @@ export async function verifyPublicApi(target, { fetch: request = fetch } = {}) {
     throw new Error('Public health commit/environment mismatch');
   }
   const response = await get('/chat', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: 'deployment health check' }] }) });
-  if (response.status !== 200 || response.headers.get('access-control-allow-origin') !== origin) throw new Error('Public mock chat or CORS check failed');
+    body: JSON.stringify({ messages: [] }) });
+  if (response.status !== 400 || response.headers.get('access-control-allow-origin') !== origin) throw new Error('Public invalid chat request or CORS check failed');
   const chat = await response.json();
-  if (chat.mode !== 'mock' || chat.message?.role !== 'assistant' || typeof chat.message?.content !== 'string' || !chat.message.content.trim()) throw new Error('Invalid public mock chat response');
+  if (chat.code !== 'INVALID_REQUEST') throw new Error('Invalid public chat validation response');
   const preflight = await get('/chat', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
   if (preflight.status !== 204 || preflight.headers.get('access-control-allow-origin') !== origin
     || !preflight.headers.get('access-control-allow-methods')?.split(',').map((method) => method.trim()).includes('POST')

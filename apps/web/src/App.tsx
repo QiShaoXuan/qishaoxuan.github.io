@@ -1,5 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { ResumePage } from './resume/ResumePage';
+import pdfMetadata from './resume/pdf-metadata.json';
 import { ChatWidget } from './chat/ChatWidget';
 import type { ChatMode } from './chat/ChatWidget';
 
@@ -27,6 +29,9 @@ export function App() {
     <div className="app-shell" data-chat-open={chatOpen} data-chat-mode={chatMode}>
       <div className="resume-region" inert={chatOpen && mobile}>
         <a className="skip-link" href="#resume">跳到简历正文</a>
+        <a className="resume-download" href={`${import.meta.env.BASE_URL}resume.pdf?v=${pdfMetadata.sourceHash}`} download="齐少轩的简历.pdf" aria-label="下载简历 PDF" title="下载简历 PDF">
+          <ArrowDownTrayIcon aria-hidden="true" />
+        </a>
         <main><ResumePage /></main>
       </div>
       <ChatWidget open={chatOpen} onOpenChange={setChatOpen} mode={chatMode} onModeChange={setChatMode} />
