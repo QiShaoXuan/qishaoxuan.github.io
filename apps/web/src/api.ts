@@ -4,7 +4,7 @@ import { createChatParser } from './chat/stream';
 import type { ChatEvent } from './chat/stream';
 import type { HistoryMessage } from './chat/conversation';
 
-type Health = { status: 'ok'; service: string };
+type Health = { status: 'ok'; service: string; audit?: { enabled: boolean; retentionDays: number } };
 
 function apiUrl(path: '/api/health' | '/api/chat'): string {
   const configured = import.meta.env.VITE_API_BASE_URL?.trim();
@@ -23,7 +23,10 @@ export async function checkHealth(signal: AbortSignal): Promise<Health> {
   ) {
     throw new Error('服务响应格式不符合预期，请检查后端状态。');
   }
-  return { status: 'ok', service: result.service };
+  const audit = 'audit' in result ? result.audit : undefined;
+  const policy = typeof audit === 'object' && audit !== null && 'enabled' in audit && typeof audit.enabled === 'boolean' && 'retentionDays' in audit && typeof audit.retentionDays === 'number' && Number.isInteger(audit.retentionDays) && audit.retentionDays >= 1 && audit.retentionDays <= 7
+    ? { enabled: audit.enabled, retentionDays: audit.retentionDays } : undefined;
+  return { status: 'ok', service: result.service, audit: policy };
 }
 
 export async function streamChat(messages: HistoryMessage[], signal: AbortSignal, onEvent: (event: ChatEvent) => void): Promise<void> {
@@ -33,7 +36,7 @@ export async function streamChat(messages: HistoryMessage[], signal: AbortSignal
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   const abort = () => controller.abort();
   const expire = () => { timedOut = true; controller.abort(); };
-  const total = window.setTimeout(expire, 60_000);
+  const total = window.setTimeout(expire, 125_000);
   let idle = window.setTimeout(expire, 30_000);
   signal.addEventListener('abort', abort, { once: true });
   if (signal.aborted) controller.abort();
