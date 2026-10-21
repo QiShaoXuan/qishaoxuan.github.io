@@ -14,7 +14,7 @@ const resumeDocument = resume.replace('### Other', `${legacy}### Other`);
 const body = Array.from({ length: 6 }, (_, index) => `## ${index + 1}. 章节\n已确认的项目内容 ${index + 1}。`).join('\n\n');
 const document = `# 内部整理标题\nHEADER_EXCLUDED\n\n${body}\n\n## 7. 后续补充\nMAINTENANCE_EXCLUDED\n\n## 8. 接入要求\nINTEGRATION_EXCLUDED\n`;
 
-const bytedanceBody = Array.from({ length: 6 }, (_, index) => `## ${index + 1}. 字节项目\n字节已批准内容 ${index + 1}。`).join('\n\n');
+const bytedanceBody = Array.from({ length: 5 }, (_, index) => `## ${index + 1}. 字节项目\n字节已批准内容 ${index + 1}。`).join('\n\n');
 const bytedanceDocument = `# 字节跳动\nBYTE_HEADER_EXCLUDED\n## 经历概览\nBYTE_OVERVIEW_EXCLUDED\n\n${bytedanceBody}\n`;
 
 async function fixture(run) {
@@ -114,7 +114,7 @@ test('ByteDance and resume redactions are versioned by actual model input, exclu
   const marker = new Date('2000-01-01T00:00:00Z');
   await utimes(output, marker, marker);
   await writeFile(input, resumeDocument.replace('SENSITIVE_LEGACY_BYTE', 'CHANGED_PRIVATE_LEGACY'));
-  await writeFile(bytedance, `${bytedanceDocument.replace('BYTE_OVERVIEW_EXCLUDED', 'updated overview')}\n## 7. 维护\nBYTE_MAINTENANCE_EXCLUDED\n## 8. 审计\nBYTE_AUDIT_EXCLUDED\n`);
+  await writeFile(bytedance, `${bytedanceDocument.replace('BYTE_OVERVIEW_EXCLUDED', 'updated overview')}\n## 6. 维护\nBYTE_MAINTENANCE_EXCLUDED\n## 7. 审计\nBYTE_AUDIT_EXCLUDED\n`);
   assert.equal(await generate(), version);
   assert.equal((await stat(output)).mtimeMs, marker.getTime());
   const unchanged = await readFile(output, 'utf8');
@@ -148,12 +148,12 @@ test('ByteDance sections reject missing, repeated, reordered, empty, and unexpec
     bytedanceDocument.replace('## 3.', '### 3.'),
     bytedanceDocument.replace('## 3.', '## 2.'),
     bytedanceDocument.replace('## 2.', '## 3.').replace('## 3. 字节项目\n字节已批准内容 3', '## 2. 字节项目\n字节已批准内容 3'),
-    bytedanceDocument.replace('字节已批准内容 6。', ''),
+    bytedanceDocument.replace('字节已批准内容 5。', ''),
     bytedanceDocument.replace('## 3.', '## 意外非编号正文\nUNAPPROVED\n## 3.'),
     bytedanceDocument.replace('## 3.', '## 9. 意外编号正文\nUNAPPROVED\n## 3.'),
     bytedanceDocument.replace('## 经历概览', '## 2. 错误前置章节'),
-    `${bytedanceDocument}\n## 8. 跳过边界\nUNAPPROVED`,
-    `${bytedanceDocument}\n## 7. 维护\nNOTE\n## 1. 重复章节\nUNAPPROVED`,
+    `${bytedanceDocument}\n## 7. 跳过边界\nUNAPPROVED`,
+    `${bytedanceDocument}\n## 6. 维护\nNOTE\n## 1. 重复章节\nUNAPPROVED`,
     `${bytedanceDocument}\n## 意外尾部章节\nUNAPPROVED`,
   ]) {
     await writeFile(bytedance, broken);

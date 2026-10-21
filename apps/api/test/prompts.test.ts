@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { Writable } from 'node:stream';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
@@ -31,7 +32,7 @@ test('model-facing knowledge excludes editorial workflow while the prompt retain
   assert.doesNotMatch(AFFINE_TEXT, /本次|本轮|待补|待核|确认日期|未逐行审查|未运行当年|可继续补充|见第\s*\d+\./);
   assert.doesNotMatch(AFFINE_TEXT, /^### Q\d+.*【/m);
   const prompt = buildSystemPrompt();
-  for (const rule of ['不主动附加资料整理过程', '只有问题所需的信息确实缺失时', '未提供的主观难度排名、协作故事和个人动机不能自行补写', '不声称测试全部通过', '不能暗示重新运行过历史测试', '信息缺失不代表项目未完成']) assert.ok(prompt.includes(rule), rule);
+  for (const rule of ['不主动附加资料整理过程', '只有问题所需的信息确实缺失时', '未提供的主观难度排名、协作故事和个人动机不能自行补写', '不声称测试全部通过', '不能暗示重新运行过历史测试', '信息缺失不代表项目未完成', '不将其作为本人经历补入回答']) assert.ok(prompt.includes(rule), rule);
 });
 
 test('local sources have content versions; deployed sources point to the exact release', () => {
@@ -98,4 +99,15 @@ test('ByteDance context uses redacted project facts without the legacy resume pr
   for (const rule of ['不从其他内容', '精确业务指标', '不扩大', '不能推导因果', '不能说全量迁完', '不能把影子流量、自动对账']) {
     assert.ok(prompt.includes(rule), rule);
   }
+});
+
+
+test('published resume and model knowledge exclude the removed support experience', async () => {
+  const resume = await readFile(new URL('../../../readme.md', import.meta.url), 'utf8');
+  const knowledge = await readFile(new URL('../../../docs/knowledge/bytedance.md', import.meta.url), 'utf8');
+  for (const text of [resume, knowledge, BYTEDANCE_TEXT, buildSystemPrompt()]) {
+    assert.doesNotMatch(text, /智能客服|客服支援|知识库配置|客服监控/);
+  }
+  assert.match(BYTEDANCE_TEXT, /^## 4\. 线上问题录屏与诊断$/m);
+  assert.match(BYTEDANCE_TEXT, /^## 5\. 工程效能与服务迁移$/m);
 });

@@ -46,12 +46,12 @@ export async function generateKnowledge(
   const bytedanceStart = bytedanceSections.findIndex((section) => /^1\. \S/.test(section[1]));
   const bytedanceApproved = bytedanceSections.slice(bytedanceStart);
   if (bytedanceStart < 0 || bytedanceSections.slice(0, bytedanceStart).some((section) => /^\d+\./.test(section[1]))
-    || bytedanceApproved.length < 6
+    || bytedanceApproved.length < 5
     || bytedanceApproved.some((section, index) => Number(section[1].match(/^(\d+)\. \S/)?.[1]) !== index + 1)
-    || bytedanceApproved.slice(0, 6).some((section, index) => !bytedanceDocument.slice(section.index + section[0].length, bytedanceApproved[index + 1]?.index ?? bytedanceDocument.length).trim())) {
-    throw new Error('ByteDance knowledge requires complete, nonempty sections 1–6 followed only by ordered numbered maintenance sections.');
+    || bytedanceApproved.slice(0, 5).some((section, index) => !bytedanceDocument.slice(section.index + section[0].length, bytedanceApproved[index + 1]?.index ?? bytedanceDocument.length).trim())) {
+    throw new Error('ByteDance knowledge requires complete, nonempty sections 1–5 followed only by ordered numbered maintenance sections.');
   }
-  const bytedance = bytedanceDocument.slice(bytedanceApproved[0].index, bytedanceApproved[6]?.index).trimEnd();
+  const bytedance = bytedanceDocument.slice(bytedanceApproved[0].index, bytedanceApproved[5]?.index).trimEnd();
   const hash = (content) => createHash('sha256').update(content).digest('hex').slice(0, 16);
   const version = hash(JSON.stringify({ resume, affine, bytedance }));
   const module = [
