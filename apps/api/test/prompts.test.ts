@@ -20,7 +20,7 @@ test('AFFiNE cleanup preserves technical facts, shared authorship and contributi
 });
 
 test('approved AFFiNE decisions and debugging process are available without live GitHub', () => {
-  const prompt = buildSystemPrompt({ repositories: [], unavailable: ['toeverything/AFFiNE'] });
+  const prompt = buildSystemPrompt();
   for (const fact of ['8px', 'link-preview-js', 'Context', 'PasteManager', 'ContentParser', 'atext\nh1c', 'assertSelection(page, 1, 2, 0)', 'ClipboardEvent']) assert.ok(prompt.includes(fact), fact);
   for (const rule of ['任职时间以公开简历为准', '无需重复要求本人确认', '不等于齐少轩历史个人贡献', '不能新增或覆盖经历事实', '不声称测试全部通过', '仍可依据已提供的公开简历、AFFiNE / BlockSuite 和字节跳动项目资料回答']) assert.ok(prompt.includes(rule), rule);
   for (const excluded of ['## 7. 后续可补充', '## 8. 后续接入', '未接入聊天服务', '533 条匹配作者提交索引', '## 4. 关键实现的核验']) assert.ok(!prompt.includes(excluded), excluded);
@@ -89,16 +89,20 @@ test('JSON and SSE cite loaded local knowledge even if GitHub fails; logs only c
 test('ByteDance context uses redacted project facts without the legacy resume project claims', () => {
   const prompt = buildSystemPrompt();
   assert.ok(prompt.includes(BYTEDANCE_TEXT));
-  for (const fact of ['ClipboardItem', 'text/plain', '90s', '12000px', '10MiB', '750px', '375px', '5 分钟', 'P75', '2026 年 8 月 10–16 日', '10 月 2–8 日', '后续迭代', '五个数据查询接口', '一期灰度']) {
+  for (const fact of ['ClipboardItem', 'text/plain', '90s', '12000px', '10MiB', '750px', '375px', '5 分钟', 'P75', '2026 年 8 月 10–16 日', '10 月 2–8 日', '后续迭代', '多个数据查询接口', '一期灰度']) {
     assert.ok(BYTEDANCE_TEXT.includes(fact), fact);
   }
   assert.doesNotMatch(RESUME_TEXT, /^### ByteDance/m);
   assert.ok(RESUME_TEXT.includes('2023-11 ~ 至今 - ByteDance'));
   for (const employer of ['### AFFiNE', '### 京东', '### Finxos', '### 垓方']) assert.ok(RESUME_TEXT.includes(employer), employer);
   assert.doesNotMatch(prompt, /橙蕉|ECAM|1\.72|16\.7pp|27\.61%|11\.68%|62\.55%/);
-  for (const rule of ['不从其他内容', '精确业务指标', '不扩大', '不能推导因果', '不能说全量迁完', '不能把影子流量、自动对账']) {
+  for (const rule of ['不从其他内容', '精确业务指标', '不扩大', '不能推导因果', '不能把建议说成已落地或把阶段交付说成全量完成']) {
     assert.ok(prompt.includes(rule), rule);
   }
+  // Project-specific phase and implementation boundaries stay in the approved knowledge.
+  assert.match(BYTEDANCE_TEXT, /不是整体服务全量迁移/);
+  assert.match(BYTEDANCE_TEXT, /影子流量[\s\S]*不是一期实际采用/);
+  assert.match(BYTEDANCE_TEXT, /无控制双写[\s\S]*没有.*采用/);
 });
 
 

@@ -19,7 +19,7 @@ test('both health routes work without Origin', async (t) => {
   for (const url of ['/healthz', '/api/health']) {
     const response = await app.inject({ url });
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api', ...(url === '/api/health' ? { chat: { mode: 'mock', configured: true } } : {}) });
+    assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api', ...(url === '/api/health' ? { chat: { mode: 'mock', configured: true }, audit: { enabled: false, retentionDays: 7 } } : {}) });
   }
 });
 
@@ -135,7 +135,7 @@ test('release health identifies both deployed environments without changing mock
     for (const url of ['/healthz', '/api/health']) {
       const response = await app.inject({ url, headers: { origin } });
       assert.equal(response.statusCode, 200);
-      assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api', commit, environment, ...(url === '/api/health' ? { chat: { mode: 'mock', configured: true } } : {}) });
+      assert.deepEqual(response.json(), { status: 'ok', service: 'resume-api', commit, environment, ...(url === '/api/health' ? { chat: { mode: 'mock', configured: true }, audit: { enabled: false, retentionDays: 7 } } : {}) });
       assert.equal(response.headers['access-control-allow-origin'], origin);
     }
     const reply = await app.inject({ method: 'POST', url: '/api/chat', payload, headers: { origin } });
