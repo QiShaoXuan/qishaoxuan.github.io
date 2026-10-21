@@ -13,9 +13,9 @@ export function historyFor(turns: Turn[], user: string): HistoryMessage[] {
   let size = user.length;
   for (const turn of [...turns].reverse()) {
     if (turn.status !== 'complete' || turn.finishReason === 'length') continue;
-    if (turn.user.length > 4000 || turn.assistant.length > 4000) break;
+    if (turn.user.length > 4000 || turn.assistant.length > 16384) break;
     const length = turn.user.length + turn.assistant.length;
-    if (pairs.length >= 9 || size + length > 16_000) break;
+    if (pairs.length >= 9 || size + length > 32_768) break;
     pairs.unshift([{ role: 'user', content: turn.user }, { role: 'assistant', content: turn.assistant }]);
     size += length;
   }

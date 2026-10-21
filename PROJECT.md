@@ -89,8 +89,8 @@ GitHub Environments 已各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN
 | `API_CHAT_RATE_LIMIT_MAX` / `API_CHAT_RATE_LIMIT_WINDOW_MS` | 默认每 IP 每 60000 毫秒 10 次聊天请求；单进程内存计数，重启清空。 |
 | `API_CHAT_MODE` | 默认 `mock`；设为 `deepseek` 才调用模型，缺少服务端密钥时拒绝启动。 |
 | `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` | 密钥仅保存在 API 环境中；模型默认 `deepseek-flash`。 |
-| `API_CHAT_TIMEOUT_MS` | 单次上游请求超时，默认 60000 毫秒。 |
-| `API_CHAT_MAX_TOKENS` | 输出 token 上限，默认 1024，最大 2048。 |
+| `API_CHAT_TIMEOUT_MS` | 单次上游请求超时，默认 120000 毫秒；前端总等待上限为 125000 毫秒。 |
+| `API_CHAT_MAX_TOKENS` | 思考与正文共享的输出 token 上限，默认及最大 10000；按实际用量计费。 |
 | `API_CHAT_MAX_CONCURRENCY` | 进程内并发上限，默认 2。 |
 | `API_CHAT_DAILY_LIMIT` | 进程内每日模型请求上限，默认 100，按 UTC 日期重置；重启清空，不是持久化账单或硬预算。 |
 
@@ -103,7 +103,7 @@ GitHub Environments 已各设置 `ECS_INSTANCE_ID`、`ALIYUN_ROLE_ARN`、`ALIYUN
 | `GET /healthz`、`GET /api/health` | 200，`{ "status": "ok", "service": "resume-api" }`；带发布元数据时另含 `commit` 与 `environment` |
 | `POST /api/chat` | 默认 Mock，`deepseek` 模式调用模型；`Accept: text/event-stream` 返回 SSE（meta / delta / done / error），否则返回兼容 JSON。浏览器仅将正常完成的回复作为后续历史。无效输入返回 400 与 `code: "INVALID_REQUEST"`。 |
 
-聊天请求只接收 `messages`：1–20 条 `user` / `assistant` 消息，每条 1–4000 字符且不可全为空白；拒绝 `system`、自选模型与额外字段。请求体上限 100 KiB。部署探针仅发送 `{"messages":[]}` 验证路由与校验，不提交有效聊天、不调用模型；健康和 CORS 预检也不调用模型。
+聊天请求只接收 `messages`：1–20 条 `user` / `assistant` 消息，用户问题每条 1–4000 字符、历史回答每条 1–16384 字符，总上下文不超过 32768 字符，且消息不可全为空白；拒绝 `system`、自选模型与额外字段。请求体上限 100 KiB。部署探针仅发送 `{"messages":[]}` 验证路由与校验，不提交有效聊天、不调用模型；健康和 CORS 预检也不调用模型。
 
 根目录 [readme.md](readme.md) 是唯一简历事实来源。[AFFiNE / BlockSuite 项目资料](docs/knowledge/affine.md) 第 1–6 节与[字节跳动项目资料](docs/knowledge/bytedance.md) 第 1–5 节补充经本人确认的实现、选型和个人过程；任职时间以简历为准，具体职责按项目资料中更明确且不扩大的边界回答。字节资料已脱敏：内部名称、标识和精确业务指标不供回答，保留公开技术参数、统计窗口及个人/团队归属。
 
@@ -113,7 +113,7 @@ JSON 与 SSE 完成事件返回同一组参考来源：公开简历、AFFiNE 项
 
 DeepSeek 模式会按当前问题及有限的用户追问历史，匹配 AFFiNE、BlockSuite、CSS Tricks、JS Tricks、Blog、wavejs 六个固定公开仓库，每次最多两个。服务端读取 GitHub README 作为项目功能与技术背景，回答下方展示实际读取成功、绑定提交的来源链接；README 不代表完整源码分析，仓库整体功能不自动归为个人贡献。先读取仓库 HEAD 的 README，成功缓存一小时；匿名 API 限流或失败时，回退至已核实提交和准确路径的官方原始文件，提示词明确这是固定快照、可能不是最新版本。每仓总限时 6 秒，失败缓存一分钟；全部失败仍可依据已加载的简历、AFFiNE 与字节跳动项目资料回答，仅在需要核对当前仓库时说明无法读取。无需 GitHub 密钥，DeepSeek 密钥不会发送给 GitHub；Mock 模式不读取仓库。
 
-服务端输出结构化运行日志，systemd 收集到 journal，记录请求状态、耗时、prompt / knowledge 版本等排查信息；不记录聊天正文、完整 prompt、上游响应正文或密钥。日志用于本地定位，未接入外部日志平台。进程内限流、并发和每日计数不能替代持久化账单预算。
+服务端输出结构化运行日志，systemd 收集到 journal，记录请求 ID、DeepSeek 请求 ID、Token 用量、思考模式、上游状态、耗时及 prompt / knowledge 版本；journal 不记录聊天正文、完整 prompt、上游响应正文或密钥。另将当前问题和可见回答自动过滤常见敏感信息后写入私有问答审计文件，默认最多保留 7 天、每环境逻辑容量 100 MiB；取消或异常时可保存已收到的部分回答，并以 outcome 区分。详细字段、脱敏边界、容量与排查见 [聊天日志说明](docs/chat-logging.md)。未接入外部日志平台；进程内限流、并发和每日计数不能替代持久化账单预算。
 
 真实模型 smoke 属于独立、显式的本机付费功能检查：配置好本机 API Key 后，通过本机聊天面板或下面命令检查 SSE；自动构建与部署不会执行它。
 

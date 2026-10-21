@@ -1,7 +1,7 @@
 import { ConfigError } from './config.js';
 
 export type DiagnosticStage = 'config' | 'build' | 'listen' | 'request' | 'shutdown';
-const configCodes = new Set(['INVALID_INTEGER', 'INVALID_NODE_ENV', 'INVALID_RELEASE', 'INVALID_HOST', 'INVALID_ORIGINS', 'INVALID_CHAT_MODE', 'MISSING_DEEPSEEK_KEY', 'INVALID_MODEL']);
+const configCodes = new Set(['INVALID_INTEGER', 'INVALID_NODE_ENV', 'INVALID_RELEASE', 'INVALID_HOST', 'INVALID_ORIGINS', 'INVALID_CHAT_MODE', 'MISSING_DEEPSEEK_KEY', 'INVALID_MODEL', 'INVALID_AUDIT_CONFIG']);
 const listenCodes = new Set(['EADDRINUSE', 'EACCES', 'EADDRNOTAVAIL']);
 
 // Never serialize arbitrary error names, codes, messages or stack traces.

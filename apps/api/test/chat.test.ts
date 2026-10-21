@@ -33,7 +33,21 @@ test('history alternation, last user and total characters are enforced', async (
     [{ role: 'assistant', content: 'x' }],
     [...payload.messages, ...payload.messages],
     [...payload.messages, { role: 'assistant', content: 'x' }],
-    Array.from({ length: 5 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', content: 'a'.repeat(4000) })),
+    Array.from({ length: 9 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', content: 'a'.repeat(4000) })),
+  ]) assert.equal((await app.inject({ method: 'POST', url: '/api/chat', payload: { messages } })).statusCode, 400);
+});
+
+test('detailed assistant history is accepted intact while user and total history limits remain bounded', async (t) => {
+  let received: unknown;
+  const provider: ChatProvider = { async *stream(messages) { received = messages; yield '详细追问回答'; return { finishReason: 'stop' }; } };
+  const app = await buildApp(config(), { provider }); t.after(() => app.close());
+  const messages = [...payload.messages, { role: 'assistant', content: '详'.repeat(5000) }, { role: 'user', content: '继续展开' }];
+  assert.equal((await app.inject({ method: 'POST', url: '/api/chat', payload: { messages } })).statusCode, 200);
+  assert.deepEqual(received, messages);
+  for (const messages of [
+    [{ role: 'user', content: '问'.repeat(4001) }],
+    [...payload.messages, { role: 'assistant', content: '答'.repeat(16385) }, { role: 'user', content: '继续' }],
+    Array.from({ length: 9 }, (_, index) => ({ role: index % 2 ? 'assistant' : 'user', content: 'x'.repeat(4000) })),
   ]) assert.equal((await app.inject({ method: 'POST', url: '/api/chat', payload: { messages } })).statusCode, 400);
 });
 
@@ -59,7 +73,7 @@ test('DeepSeek fake HTTP preserves history, sends server system and strips reaso
   assert.equal((sent.messages as { role: string }[])[0]?.role, 'system');
   assert.deepEqual(sent.thinking, { type: 'enabled' });
   assert.equal(sent.temperature, undefined);
-  assert.equal(sent.max_tokens, 1024);
+  assert.equal(sent.max_tokens, 10000);
   assert.ok(!response.body.includes('private-thought'));
 });
 
@@ -190,7 +204,11 @@ test('SSE parser supports byte splits, CRLF, comments and rejects huge or invali
 test('configuration makes paid mode explicit and bounds limits', () => {
   assert.equal(config().chat.mode, 'mock');
   assert.throws(() => config({ API_CHAT_MODE: 'deepseek' }), /DEEPSEEK_API_KEY/);
-  for (const env of [{ API_CHAT_MODE: 'invalid' }, { API_CHAT_MAX_TOKENS: '2049' }, { API_CHAT_MAX_CONCURRENCY: '0' }, { DEEPSEEK_MODEL: 'invalid' }]) assert.throws(() => config(env));
+  assert.equal(config().chat.maxTokens, 10000);
+  assert.equal(config().chat.timeoutMs, 120000);
+  assert.equal(config({ API_CHAT_MAX_TOKENS: '2048' }).chat.maxTokens, 2048);
+  assert.equal(config({ API_CHAT_MAX_TOKENS: '10000' }).chat.maxTokens, 10000);
+  for (const env of [{ API_CHAT_MODE: 'invalid' }, { API_CHAT_MAX_TOKENS: '10001' }, { API_CHAT_MAX_CONCURRENCY: '0' }, { DEEPSEEK_MODEL: 'invalid' }]) assert.throws(() => config(env));
 });
 
 test('legacy usage-only final chunks and length finish are accepted', async () => {

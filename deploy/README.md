@@ -84,7 +84,7 @@ Certbot 客户端定期维护更新，更新后再做续期演练：
 
 `resume` 无普通 sudo 权限，仅允许 `sudo /usr/bin/systemctl restart resume.service`。应用不以 root 运行，设置 1GB 内存上限、640MB Node 堆上限。服务器原有 4GB Swap 保留；构建建议在本机或 CI 完成，避免挤占小内存服务器。
 
-应用 stdout/stderr 交给 journald。Nginx access log 不记录 IP、查询参数、请求体和 User-Agent；应用实现也须避免打印聊天正文、密钥及用户资料。Nginx error log 为 warn，故障时仍可能包含请求 URI、来源等诊断信息，不应把聊天内容放入 URL。
+应用 stdout/stderr 交给 journald。脱敏问答审计另写入 `/var/lib/resume/chat-audit`（正式）或 `/var/lib/resume-development/chat-audit`（开发），不打印到 stdout/stderr；目录、字段及留存配置见 [聊天日志说明](../docs/chat-logging.md)。Nginx access log 不记录 IP、查询参数、请求体和 User-Agent；应用实现也须避免打印聊天正文、密钥及用户资料。Nginx error log 为 warn，故障时仍可能包含请求 URI、来源等诊断信息，不应把聊天内容放入 URL。
 
 ## 云助手管理与检查
 
@@ -195,7 +195,7 @@ DeepSeek 接入已完成本地验证；代码发布不会自动迁移本机密�
 - Pages 已发布但 generation 验证或 `pages-state` 保存失败时，公网可能已经更新；下次 guard 会拒绝不一致状态。先执行下节状态恢复，禁止直接重跑去覆盖另一环境。
 - Pages 与 API 不是跨平台事务；另一个环境的静态产物来自最近成功保存的状态，不保证其 API 在故障前后自动回滚。
 
-API 仅信任回环代理传递的客户端地址，Nginx 覆盖 `X-Forwarded-For`；聊天默认每 IP 每分钟 10 次，健康和 CORS 预检不计入额度，计数在单进程内存中。真实模型默认最大并发 2、每日请求 100、输出 1024 token（最大 2048）、超时 60000 毫秒；内存计数重启清空，不是持久账单或硬预算。密钥仅置于服务端环境文件，不进入 API 包、Pages 或 Git。结构化日志由 systemd 收集到 journal，包含状态、耗时及 prompt / knowledge 版本，不存聊天正文、完整 prompt、上游响应正文或密钥。排查时在云助手中按目标用户检查对应 unit 的 journal；本轮仅完成本地验证，未读取线上日志。
+API 仅信任回环代理传递的客户端地址，Nginx 覆盖 `X-Forwarded-For`；聊天默认每 IP 每分钟 10 次，健康和 CORS 预检不计入额度，计数在单进程内存中。真实模型默认最大并发 2、每日请求 100、思考与正文共享输出上限 10000 token、超时 120000 毫秒（前端总超时 125000 毫秒）；内存计数重启清空，不是持久账单或硬预算。密钥仅置于服务端环境文件，不进入 API 包、Pages 或 Git。结构化日志由 systemd 收集到 journal，包含状态、耗时及 prompt / knowledge 版本，不存聊天正文、完整 prompt、上游响应正文或密钥。脱敏问答审计与 journal 分开，默认最多保留 7 天、每环境逻辑容量 100 MiB。通过云助手按目标环境检查对应 unit 的 journal 和私有审计目录，避免把问答正文输出到云助手命令结果；只筛选需要的安全元数据。新增审计能力须随代码发布后才在服务器生效，不表示已部署。
 
 ### 恢复已发布 Pages 状态
 
@@ -248,6 +248,6 @@ git -C "$RECOVERY_ROOT/state" push origin HEAD:refs/heads/pages-state
 
 ## 后续范围
 
-本地已支持 Mock 与 DeepSeek SSE，尚未发布；部署检查不调用真实模型。上线前分别配置目标环境的服务端模式、密钥和额度，并独立验证真实模型与日志隐私。自有域名不是当前 IP HTTPS 的前置条件。
+新增脱敏问答审计能力的代码须发布后再核验线上落盘与淘汰；本次文档更新不表示已经部署。部署检查不调用真实模型；目标环境的模型模式、密钥、额度及日志配置以服务器实际配置为准，真实模型检查单独显式执行。自有域名不是当前 IP HTTPS 的前置条件。
 
 参考：[Node 官方下载](https://nodejs.org/en/download)、[Nginx 代理缓冲](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering)。

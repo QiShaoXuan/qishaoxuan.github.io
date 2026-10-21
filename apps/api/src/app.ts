@@ -6,7 +6,9 @@ import Fastify, { LogController } from 'fastify';
 import { loadConfig } from './config.js';
 import type { ApiConfig } from './config.js';
 import { mockProvider, validateHistory } from './chat.js';
-import type { ChatProvider, Message, Completion } from './chat.js';
+import type { ChatProvider, Message, Completion, ChatTelemetry } from './chat.js';
+import { createAuditStore } from './audit.js';
+import type { AuditStore } from './audit.js';
 import { safeDiagnostic } from './diagnostics.js';
 import { deepseekProvider } from './deepseek.js';
 import { createGithubLoader } from './github.js';
@@ -28,24 +30,30 @@ const chatBodySchema = {
         additionalProperties: false,
         properties: {
           role: { type: 'string', enum: ['user', 'assistant'] },
-          content: { type: 'string', minLength: 1, maxLength: 4000, pattern: '\\S' },
+          content: { type: 'string', minLength: 1, maxLength: 16384, pattern: '\\S' },
         },
+        if: { properties: { role: { const: 'user' } } },
+        then: { properties: { content: { type: 'string', maxLength: 4000 } } },
       },
     },
   },
 } as const;
 
 // Model and GitHub transports are separate. A model test transport never opts into live GitHub.
-export interface AppOptions { provider?: ChatProvider; fetch?: typeof fetch; githubFetch?: typeof fetch; logStream?: Writable }
+export interface AppOptions { provider?: ChatProvider; fetch?: typeof fetch; githubFetch?: typeof fetch; logStream?: Writable; auditStore?: AuditStore }
 
 export async function buildApp(config: ApiConfig = loadConfig(), options: AppOptions = {}) {
   const app = Fastify({
-    logger: { hooks: { logMethod(args, method) { if (['request', 'chat', 'startup', 'shutdown', 'diagnostic'].includes(String(args[1]))) method.apply(this, args); } }, level: 'info', ...(options.logStream ? { stream: options.logStream } : {}), base: null, timestamp: true, serializers: { req: () => ({}), res: () => ({}), err: () => ({ type: 'Error', message: '', stack: '' }) } },
+    logger: { hooks: { logMethod(args, method) { if (['request', 'chat', 'startup', 'shutdown', 'diagnostic', 'audit'].includes(String(args[1]))) method.apply(this, args); } }, level: 'info', ...(options.logStream ? { stream: options.logStream } : {}), base: null, timestamp: true, serializers: { req: () => ({}), res: () => ({}), err: () => ({ type: 'Error', message: '', stack: '' }) } },
     logController: new LogController({ disableRequestLogging: true }), requestIdHeader: false, genReqId: () => randomUUID(),
     bodyLimit: 100 * 1024,
     trustProxy: ['127.0.0.1', '::1'],
     ajv: { customOptions: { removeAdditional: false, coerceTypes: false, useDefaults: false } },
   });
+  const auditStore = config.audit.enabled ? options.auditStore ?? createAuditStore(config.audit, [config.chat.apiKey ?? ''], () => {
+    app.log.warn({ auditStatus: 'failed', operation: 'cleanup' }, 'audit');
+  }) : undefined;
+  app.addHook('onClose', async () => { await auditStore?.close(); });
   const githubLoader = options.githubFetch ? createGithubLoader(options.githubFetch) : options.fetch ? undefined : createGithubLoader();
   const provider = options.provider ?? (config.chat.mode === 'mock' ? mockProvider : deepseekProvider(config.chat, options.fetch, githubLoader));
   let concurrent = 0, used = 0, day = new Date().toISOString().slice(0, 10);
@@ -72,7 +80,7 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
   });
   const health = () => ({ status: 'ok', service: 'resume-api', ...config.release });
   app.get('/healthz', health);
-  app.get('/api/health', () => ({ ...health(), chat: { mode: config.chat.mode, configured: config.chat.mode === 'mock' || Boolean(config.chat.apiKey) } }));
+  app.get('/api/health', () => ({ ...health(), chat: { mode: config.chat.mode, configured: config.chat.mode === 'mock' || Boolean(config.chat.apiKey) }, audit: { enabled: config.audit.enabled, retentionDays: config.audit.retentionDays } }));
   app.post<{ Body: { messages: Message[] } }>('/api/chat', { schema: { body: chatBodySchema }, config: { rateLimit: config.chatRateLimit } }, async (request, reply) => {
     const fail = (status: number, code: string) => reply.code(status).send({ code, message: '请求暂时无法处理，请稍后重试。', requestId: request.id });
     try { validateHistory(request.body.messages); } catch { return fail(400, 'INVALID_REQUEST'); }
@@ -92,6 +100,8 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
     const started = performance.now();
     let firstToken: number | undefined, completion: Completion | undefined;
     let outcome = 'error', errorCode: string | undefined;
+    const telemetry: ChatTelemetry = {};
+    let content = '';
     let heartbeat: NodeJS.Timeout | undefined;
     let iterator: AsyncGenerator<string, Completion> | undefined;
     try {
@@ -107,8 +117,7 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
         }, 15000);
         heartbeat.unref();
       }
-      iterator = provider.stream(request.body.messages, controller.signal);
-      let content = '';
+      iterator = provider.stream(request.body.messages, controller.signal, (update) => Object.assign(telemetry, update));
       while (true) {
         const result = await new Promise<IteratorResult<string, Completion>>((resolve, reject) => {
           const listener = () => reject(new ChatError('REQUEST_ABORTED', 499));
@@ -145,7 +154,29 @@ export async function buildApp(config: ApiConfig = loadConfig(), options: AppOpt
       // A provider may be blocked inside next(); cancellation is signaled, never awaited indefinitely.
       void iterator?.return({ finishReason: 'stop' }).catch(() => {});
       reply.raw.off('close', abort); active.delete(controller); concurrent--;
-      app.log.info({ route: '/api/chat', method: 'POST', id: request.id, env: config.release?.environment ?? 'local', commit: config.release?.commit, timing: performance.now() - started, firstToken, status: reply.statusCode, model: config.chat.mode === 'deepseek' ? config.chat.model : 'mock', outcome, errorCode, finish: outcome === 'success' ? completion?.finishReason : 'error', upstreamId: completion?.upstreamId, promptTokens: completion?.promptTokens, completionTokens: completion?.completionTokens, promptVersion: PROMPT_VERSION, knowledgeVersion: KNOWLEDGE_VERSION, knowledgeRefs: config.chat.mode === 'deepseek' ? KNOWLEDGE_SOURCES.map((source) => source.id) : [], repositoryRefs: completion?.sources?.map((source) => source.id) ?? [] }, 'chat');
+      const metadata = {
+        route: '/api/chat', method: 'POST', id: request.id, env: config.release?.environment ?? 'local', commit: config.release?.commit ?? null,
+        timing: performance.now() - started, firstToken: firstToken ?? null, status: reply.statusCode,
+        model: config.chat.mode === 'deepseek' ? config.chat.model : 'mock', outcome, errorCode: errorCode ?? null,
+        finish: outcome === 'success' ? completion?.finishReason : 'error',
+        thinkingEnabled: telemetry.thinkingEnabled ?? false, reasoningEffort: telemetry.reasoningEffort ?? 'none',
+        upstreamStatus: telemetry.upstreamStatus ?? null, upstreamId: telemetry.upstreamId ?? completion?.upstreamId ?? null,
+        upstreamModel: telemetry.upstreamModel ?? null, upstreamStartedAt: telemetry.upstreamStartedAt ?? null,
+        upstreamDurationMs: telemetry.upstreamDurationMs ?? null, firstReasoningMs: telemetry.firstReasoningMs ?? null, firstContentMs: telemetry.firstContentMs ?? null,
+        promptTokens: telemetry.promptTokens ?? completion?.promptTokens ?? null, completionTokens: telemetry.completionTokens ?? completion?.completionTokens ?? null,
+        cacheHitTokens: telemetry.cacheHitTokens ?? null, cacheMissTokens: telemetry.cacheMissTokens ?? null, reasoningTokens: telemetry.reasoningTokens ?? null,
+        usageStatus: config.chat.mode === 'mock' ? 'not_applicable' : telemetry.usageStatus ?? 'missing', upstreamErrorCode: telemetry.upstreamErrorCode ?? null,
+        promptVersion: PROMPT_VERSION, knowledgeVersion: KNOWLEDGE_VERSION,
+        knowledgeRefs: config.chat.mode === 'deepseek' ? KNOWLEDGE_SOURCES.map((source) => source.id) : [], repositoryRefs: completion?.sources?.map((source) => source.id) ?? [],
+      };
+      app.log.info({ ...metadata, auditStatus: auditStore ? 'queued' : 'disabled' }, 'chat');
+      if (auditStore) {
+        // Audit persistence is best effort and never delays or replaces the chat response.
+        const report = (auditStatus: 'stored' | 'dropped' | 'failed') => app.log.info({ id: request.id, env: metadata.env, auditStatus }, 'audit');
+        try {
+          void auditStore.write({ question: request.body.messages.at(-1)!.content, answer: content, metadata }).then(report, () => report('failed'));
+        } catch { report('failed'); }
+      }
     }
   });
   return app;
