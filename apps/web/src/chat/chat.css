@@ -80,7 +80,7 @@
 .beautiful-send svg { width: 14px; height: 14px; }
 .beautiful-send:disabled { background: var(--line-strong); color: var(--ink-2); }
 .beautiful-send:enabled:active { transform: scale(.96); }
-.chat-disclaimer { flex-shrink: 0; margin: 0; padding: 9px 10px 12px; text-align: center; color: var(--ink-3); font-size: 12px; line-height: 1.4; }
+.chat-disclaimer { flex-shrink: 0; margin: 0; padding: 9px 16px 12px; text-align: left; color: var(--ink-3); font-size: 12px; line-height: 1.4; }
 .chat-error { color: #934e3e; font-size: 12px; }
 .chat-error p { margin: 0 0 5px; }
 .chat-error button { display: inline-flex; align-items: center; gap: 5px; background: transparent; color: var(--ink-2); padding: 4px 0; }
