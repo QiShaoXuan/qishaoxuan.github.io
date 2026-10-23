@@ -92,8 +92,8 @@ test('ByteDance context uses redacted project facts without the legacy resume pr
   for (const fact of ['ClipboardItem', 'text/plain', '90s', '12000px', '10MiB', '750px', '375px', '5 分钟', 'P75', '2026 年 8 月 10–16 日', '10 月 2–8 日', '后续迭代', '多个数据查询接口', '一期灰度']) {
     assert.ok(BYTEDANCE_TEXT.includes(fact), fact);
   }
-  assert.doesNotMatch(RESUME_TEXT, /^### ByteDance/m);
-  assert.ok(RESUME_TEXT.includes('2023-11 ~ 至今 - ByteDance'));
+  assert.doesNotMatch(RESUME_TEXT, /^### (?:ByteDance|字节跳动-抖音电商)/m);
+  assert.ok(RESUME_TEXT.includes('2023-11 ~ 至今 - 字节跳动-抖音电商'));
   for (const employer of ['### AFFiNE', '### 京东', '### Finxos', '### 垓方']) assert.ok(RESUME_TEXT.includes(employer), employer);
   assert.doesNotMatch(prompt, /橙蕉|ECAM|1\.72|16\.7pp|27\.61%|11\.68%|62\.55%/);
   for (const rule of ['不从其他内容', '精确业务指标', '不扩大', '不能推导因果', '不能把建议说成已落地或把阶段交付说成全量完成']) {

@@ -25,10 +25,10 @@ export async function generateKnowledge(
   const resumeSections = [...resumeDocument.matchAll(/^## ([^\r\n]+)\r?$/gm)];
   const projects = resumeSections.filter((section) => section[1] === '项目经验');
   const resumeProjects = [...resumeDocument.matchAll(/^### ([^\r\n]+)\r?$/gm)];
-  const legacy = resumeProjects.filter((section) => /^ByteDance(?:[（(\s]|$)/.test(section[1]));
+  const legacy = resumeProjects.filter((section) => /^(?:ByteDance|字节跳动-抖音电商)(?:[（(\s]|$)/.test(section[1]));
   const nextProject = legacy.length === 1 ? resumeProjects[resumeProjects.indexOf(legacy[0]) + 1] : undefined;
   const nextResumeSection = projects.length === 1 ? resumeSections[resumeSections.indexOf(projects[0]) + 1] : undefined;
-  if (projects.length !== 1 || legacy.length !== 1 || !/^ByteDance（[^）\r\n]+）$/.test(legacy[0][1])
+  if (projects.length !== 1 || legacy.length !== 1 || !/^(?:ByteDance|字节跳动-抖音电商)（[^）\r\n]+）$/.test(legacy[0][1])
     || legacy[0].index < projects[0].index || !nextProject || !nextResumeSection || nextProject.index >= nextResumeSection.index) {
     throw new Error('Public resume requires exactly one legacy ByteDance project block inside 项目经验 with a following same-level project boundary.');
   }
