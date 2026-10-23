@@ -126,6 +126,23 @@ test('ByteDance and resume redactions are versioned by actual model input, exclu
   assert.ok(!changed.includes('字节已批准内容 3'));
 }));
 
+test('Chinese ByteDance name preserves employment while removing the legacy project block', () => fixture(async ({ input, output, generate }) => {
+  const renamed = resumeDocument.replaceAll('ByteDance', '字节跳动-抖音电商');
+  await writeFile(input, renamed);
+  await generate();
+  const generated = await import(pathToFileURL(output).href);
+  assert.equal(generated.RESUME_TEXT, resume.replaceAll('ByteDance', '字节跳动-抖音电商'));
+  assert.ok(!generated.RESUME_TEXT.includes('SENSITIVE_LEGACY_BYTE'));
+  assert.equal(await readFile(input, 'utf8'), renamed);
+  for (const broken of [
+    renamed.replace('### 字节跳动-抖音电商（2023-11 ~ 至今）', '### 字节跳动-抖音电商(2023-11 ~ 至今)'),
+    renamed.replace('### Other', `${legacy}### Other`),
+  ]) {
+    await writeFile(input, broken);
+    await assert.rejects(generate(), /exactly one legacy ByteDance project block/);
+  }
+}));
+
 test('legacy ByteDance resume removal fails closed when its section or following boundary changes', () => fixture(async ({ input, generate }) => {
   for (const broken of [
     resume,

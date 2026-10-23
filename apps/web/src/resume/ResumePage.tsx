@@ -46,17 +46,11 @@ function SourceSection({ title, className = '' }: { title: string; className?: s
 export function ResumePage() {
   const personal = blockText(findSection('个人相关')?.blocks ?? []);
   const contacts = blockText(findSection('联系方式')?.blocks ?? []);
-  const summary = blockText(findSection('个人总结')?.blocks ?? []);
   const name = /姓名：([^\n]+)/.exec(personal)?.[1] ?? '';
   const education = /毕业院校及专业：([^\n]+)/.exec(personal)?.[1];
   const github = /\]\((https:\/\/github\.com\/[^)]+)\)/.exec(personal)?.[1];
   const phone = /电话：([^\n]+)/.exec(contacts)?.[1];
   const email = /邮箱：([^\n]+)/.exec(contacts)?.[1];
-  const metrics = [
-    { value: /(\d+)\s*年前端/.exec(summary)?.[1], unit: '年', label: '前端研发经验' },
-    { value: /独立开发维护\s*([\d.k+]+)\s*star/.exec(summary)?.[1], unit: 'stars', label: '独立开发维护项目' },
-    { value: /核心参与\s*([\d.k+]+)\s*star/.exec(summary)?.[1], unit: 'stars', label: '核心参与开源项目' },
-  ].filter(metric => metric.value);
   const jobs = findSection('工作经历')?.blocks.find(block => block.type === 'list');
   const projects = findSection('项目经验')?.blocks ?? [];
   const projectGroups: ResumeBlock[][] = [];
@@ -67,14 +61,13 @@ export function ResumePage() {
 
   return <article className="resume-document" id="resume" tabIndex={-1} aria-label={`${name}的简历`}>
     <header className="header">
-      <div><p className="document-label">RESUME</p><h1 className="name serif">{name}</h1><p className="tagline">前端工程师</p></div>
+      <div><p className="document-label">RESUME</p><h1 className="name serif">{name}</h1></div>
       <address className="contact" aria-label="联系方式">
         {phone && <a href={`tel:${phone}`}><PhoneIcon aria-hidden="true" />{phone}</a>}
         {email && <a href={`mailto:${email}`}><EnvelopeIcon aria-hidden="true" />{email}</a>}
         {github && <a href={github} target="_blank" rel="noreferrer"><ArrowUpRightIcon aria-hidden="true" />GitHub · {github.split('/').at(-1)}</a>}
       </address>
     </header>
-    <div className="metrics" aria-label="经历概览">{metrics.map(metric => <div className="metric" key={metric.label}><span className="metric-value serif">{metric.value}<span className="unit">{metric.unit}</span></span><span className="metric-label">{metric.label}</span></div>)}</div>
     <SourceSection title="个人总结" className="summary" />
     <section aria-label="工作经历"><h2 className="section-title">工作经历</h2><div className="timeline">{jobs?.type === 'list' && jobs.items.map((item, index) => {
       const text = blockText(item);
@@ -82,7 +75,7 @@ export function ResumePage() {
       return <div className="tl-step" key={index}><div className="tl-top"><span className="tl-year serif">{job?.[1]}</span><span className="tl-head">{job?.[2] ?? text}</span></div></div>;
     })}</div></section>
     <section aria-label="项目经验"><h2 className="section-title">项目经验</h2>{projectGroups.map((blocks, index) => <div className="project" key={index}><Blocks blocks={blocks} /></div>)}</section>
-    <SourceSection title="个人项目及作品" className="personal-projects" />
     {education && <section aria-label="教育背景"><h2 className="section-title">教育背景</h2><div className="edu-row"><p>{education}</p></div></section>}
+    <SourceSection title="个人项目及作品" className="personal-projects" />
   </article>;
 }
