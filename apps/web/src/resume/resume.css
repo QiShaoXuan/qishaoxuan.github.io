@@ -331,6 +331,7 @@
   .resume-document li { margin-top: 1.5mm; }
   .resume-document li li { margin-top: 1mm; }
   .resume-document li > p { break-inside: avoid; }
+  .resume-document .project > ol > li > p:first-child { break-after: avoid; }
   .resume-document .timeline { gap: 0; }
   .resume-document .tl-step { padding: 1mm 0; }
   .resume-document .tl-top { grid-template-columns: 38mm minmax(0, 1fr); gap: 5mm; }

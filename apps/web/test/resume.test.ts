@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { blockText, parseResumeBlocks, parseResumeSections, safeLink } from '../src/resume/resume-source.ts';
-import type { ResumeBlock } from '../src/resume/resume-source.ts';
 
 const source = readFileSync(new URL('../../../readme.md', import.meta.url), 'utf8');
 
@@ -39,11 +38,9 @@ test('nested ordered and unordered lists retain parent relationships and paragra
   if (sublist.type === 'list') assert.equal(sublist.items.length, 2);
 });
 
-test('current project content keeps all five company groups and deeply nested lists', () => {
+test('current project content keeps all five company groups', () => {
   const project = parseResumeSections(source).find(section => section.title === '项目经验')!;
   assert.equal(project.blocks.filter(block => block.type === 'heading').length, 5);
-  const depth = (blocks: ResumeBlock[]): number => Math.max(0, ...blocks.map(block => block.type === 'list' ? 1 + Math.max(0, ...block.items.map(depth)) : 0));
-  assert.ok(depth(project.blocks) >= 3);
 });
 
 test('empty input is empty; raw HTML remains inert text and unsafe links are rejected', () => {

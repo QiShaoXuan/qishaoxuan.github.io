@@ -230,7 +230,7 @@ export function ChatWidget({ open, onOpenChange, mode, onModeChange }: {
 
   return (
     <>
-      <button ref={launcher} className="chat-launcher" hidden={open} onClick={() => onOpenChange(true)} aria-label="打开聊天" title="打开聊天" aria-expanded={open} aria-controls="resume-chat">
+      <button ref={launcher} className="chat-launcher" hidden onClick={() => onOpenChange(true)} aria-label="打开聊天" title="打开聊天" aria-expanded={open} aria-controls="resume-chat">
         <ChatBubbleLeftRightIcon aria-hidden="true" /><span>聊聊我的经历</span>
       </button>
       {open && <>
